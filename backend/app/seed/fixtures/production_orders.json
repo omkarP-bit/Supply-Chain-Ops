@@ -1,0 +1,56 @@
+[
+  {
+    "production_order_id": "PROD-882",
+    "product": "Industrial IoT Controller Hub v2",
+    "required_component": "COMP-104",
+    "units_planned": 500,
+    "component_required_per_unit": 1,
+    "deadline": "2026-08-27T00:00:00Z",
+    "priority": "high"
+  },
+  {
+    "production_order_id": "PROD-890",
+    "product": "Smart Grid Power Monitor",
+    "required_component": "COMP-101",
+    "units_planned": 300,
+    "component_required_per_unit": 1,
+    "deadline": "2026-08-28T00:00:00Z",
+    "priority": "high"
+  },
+  {
+    "production_order_id": "PROD-895",
+    "product": "Precision Current Transducer",
+    "required_component": "COMP-119",
+    "units_planned": 150,
+    "component_required_per_unit": 1,
+    "deadline": "2026-08-26T00:00:00Z",
+    "priority": "medium"
+  },
+  {
+    "production_order_id": "PROD-900",
+    "product": "High-Efficiency Servo Driver",
+    "required_component": "COMP-102",
+    "units_planned": 800,
+    "component_required_per_unit": 1,
+    "deadline": "2026-09-10T00:00:00Z",
+    "priority": "medium"
+  },
+  {
+    "production_order_id": "PROD-910",
+    "product": "Opto-Isolated Gate Barrier",
+    "required_component": "COMP-103",
+    "units_planned": 1200,
+    "component_required_per_unit": 1,
+    "deadline": "2026-09-15T00:00:00Z",
+    "priority": "low"
+  },
+  {
+    "production_order_id": "PROD-920",
+    "product": "Modular Edge Gateway 4G",
+    "required_component": "COMP-105",
+    "units_planned": 400,
+    "component_required_per_unit": 1,
+    "deadline": "2026-09-05T00:00:00Z",
+    "priority": "medium"
+  }
+]

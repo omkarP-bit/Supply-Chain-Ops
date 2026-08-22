@@ -18,6 +18,20 @@ from app.db.models.risk import RiskThreshold
 
 
 async def seed_db(session: AsyncSession) -> None:
+    from sqlalchemy import text
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_eligible_supplier_material ON supplier_materials (supplier_id, material_id, available_quantity) WHERE certification_valid = true",
+        "CREATE INDEX IF NOT EXISTS idx_active_suppliers ON suppliers (supplier_id) WHERE status = 'ACTIVE'",
+        "CREATE INDEX IF NOT EXISTS idx_supplier_material_available ON supplier_materials (material_id, available_quantity) WHERE available_quantity > 0",
+        "CREATE INDEX IF NOT EXISTS idx_supplier_certification_valid ON supplier_materials (supplier_id, material_id) WHERE certification_valid = true",
+    ]
+    for idx_sql in indexes:
+        try:
+            await session.execute(text(idx_sql))
+        except Exception:
+            pass
+    await session.commit()
+
     existing = await session.execute(
         select(func.count()).select_from(Material)
     )

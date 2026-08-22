@@ -9,7 +9,8 @@ async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const message = err.message || (typeof err.detail === 'string' ? err.detail : err.detail?.message) || `HTTP ${res.status}`;
+    throw new Error(message);
   }
   return res.json();
 }
@@ -17,33 +18,55 @@ async function request(method, path, body) {
 const api = {
   health: () => fetch('/health').then(r => r.json()),
 
+  // Dashboard & Legacy Incident Control Tower
   getDashboard: () => request('GET', '/dashboard'),
-
   listIncidents: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request('GET', `/incidents${q ? '?' + q : ''}`);
   },
   getIncident: (id) => request('GET', `/incidents/${id}`),
   createIncident: (data) => request('POST', '/incidents', data),
-
   analyzeIncident: (id) => request('POST', `/incidents/${id}/analyze`),
   recommendPlans: (id) => request('POST', `/incidents/${id}/recommend`),
   getPlans: (id) => request('GET', `/incidents/${id}/plans`),
 
-  getInventory: (materialId) => request('GET', `/inventory/${materialId}`),
-  getCoverage: (materialId) => request('GET', `/inventory/${materialId}/coverage`),
-  getHistory: (materialId, days = 35) => request('GET', `/inventory/${materialId}/history?days=${days}`),
+  // Contract Core Data APIs
+  getInventory: () => request('GET', '/inventory'),
+  getInventoryItem: (id) => request('GET', `/inventory/${id}`),
+  getPurchaseOrders: () => request('GET', '/purchase-orders'),
+  getPurchaseOrder: (id) => request('GET', `/purchase-orders/${id}`),
+  patchPurchaseOrder: (id, data) => request('PATCH', `/purchase-orders/${id}`, data),
+  getSuppliers: () => request('GET', '/contract-suppliers'),
+  getProductionSchedule: () => request('GET', '/production-schedule'),
+  getSupplierMessages: () => request('GET', '/supplier-messages'),
 
-  listSuppliers: () => request('GET', '/suppliers'),
-  getEligibleSuppliers: (materialId, qty) =>
-    request('GET', `/suppliers/eligible/${materialId}?required_quantity=${qty}`),
-  getSupplier: (id) => request('GET', `/suppliers/${id}`),
+  // Contract Alert Engine APIs
+  scanAlerts: () => request('POST', '/alerts/scan'),
+  listAlerts: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request('GET', `/alerts${q ? '?' + q : ''}`);
+  },
+  getAlert: (id) => request('GET', `/alerts/${id}`),
 
+  // Contract Escalations & Approval APIs
+  listEscalations: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request('GET', `/escalations${q ? '?' + q : ''}`);
+  },
+  resolveEscalation: (id, decision, note = '') =>
+    request('POST', `/escalations/${id}/resolve`, { decision, note }),
+
+  // Contract Audit Log APIs
+  getAuditLog: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request('GET', `/audit-log${q ? '?' + q : ''}`);
+  },
+
+  // Legacy Approvals & Audit
   listApprovals: () => request('GET', '/approvals'),
   getApproval: (id) => request('GET', `/approvals/${id}`),
   approveRequest: (id) => request('POST', `/approvals/${id}/approve`),
   rejectRequest: (id, reason) => request('POST', `/approvals/${id}/reject`, { reason }),
-
   listAuditEvents: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request('GET', `/audit${q ? '?' + q : ''}`);

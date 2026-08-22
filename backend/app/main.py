@@ -6,14 +6,29 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db.session import engine, get_session_factory
+from app.db.models.base import Base
+import app.db.models.materials
+import app.db.models.suppliers
+import app.db.models.inventory
+import app.db.models.production
+import app.db.models.procurement
+import app.db.models.risk
+import app.db.models.workflow
+import app.db.models.contract_models
 from app.db.seed import seed_db
+from app.seed.seed_data import seed_contract_data
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure database tables exist
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     factory = get_session_factory()
     async with factory() as session:
         await seed_db(session)
+        await seed_contract_data(session)
     yield
 
 
@@ -27,8 +42,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api import incidents, inventory, dashboard, approvals, suppliers, recovery, audit
+from app.api import incidents, inventory, dashboard, approvals, suppliers, recovery, audit, contract_api
 
+# Existing routers
 app.include_router(incidents.router)
 app.include_router(inventory.router)
 app.include_router(dashboard.router)
@@ -36,6 +52,10 @@ app.include_router(approvals.router)
 app.include_router(suppliers.router)
 app.include_router(recovery.router)
 app.include_router(audit.router)
+
+# Contract API routers (available both at root / and /api/v1)
+app.include_router(contract_api.router)
+app.include_router(contract_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

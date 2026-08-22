@@ -1,0 +1,182 @@
+[
+  {
+    "component_id": "COMP-104",
+    "name": "Precision Aluminum Housing",
+    "current_stock": 250,
+    "usable_stock": 120,
+    "daily_usage": 60,
+    "safety_stock": 450,
+    "warehouse": "Warehouse A-12"
+  },
+  {
+    "component_id": "COMP-101",
+    "name": "Arm Cortex-M4 Microcontroller",
+    "current_stock": 80,
+    "usable_stock": 40,
+    "daily_usage": 50,
+    "safety_stock": 200,
+    "warehouse": "Warehouse A-01"
+  },
+  {
+    "component_id": "COMP-102",
+    "name": "High-Voltage Relay 24V",
+    "current_stock": 900,
+    "usable_stock": 850,
+    "daily_usage": 40,
+    "safety_stock": 300,
+    "warehouse": "Warehouse B-04"
+  },
+  {
+    "component_id": "COMP-103",
+    "name": "Optocoupler Array DIP-8",
+    "current_stock": 1200,
+    "usable_stock": 1150,
+    "daily_usage": 55,
+    "safety_stock": 400,
+    "warehouse": "Warehouse B-05"
+  },
+  {
+    "component_id": "COMP-105",
+    "name": "Stainless Steel Bracket 304",
+    "current_stock": 400,
+    "usable_stock": 380,
+    "daily_usage": 25,
+    "safety_stock": 150,
+    "warehouse": "Warehouse A-15"
+  },
+  {
+    "component_id": "COMP-106",
+    "name": "Ceramic Capacitor 10uF",
+    "current_stock": 5000,
+    "usable_stock": 4900,
+    "daily_usage": 200,
+    "safety_stock": 1000,
+    "warehouse": "Warehouse C-01"
+  },
+  {
+    "component_id": "COMP-107",
+    "name": "Schottky Diode 40V 3A",
+    "current_stock": 3200,
+    "usable_stock": 3100,
+    "daily_usage": 150,
+    "safety_stock": 800,
+    "warehouse": "Warehouse C-02"
+  },
+  {
+    "component_id": "COMP-108",
+    "name": "SMD Power Inductor 22uH",
+    "current_stock": 1800,
+    "usable_stock": 1750,
+    "daily_usage": 90,
+    "safety_stock": 500,
+    "warehouse": "Warehouse C-03"
+  },
+  {
+    "component_id": "COMP-109",
+    "name": "Lithium Battery Cell 18650",
+    "current_stock": 600,
+    "usable_stock": 580,
+    "daily_usage": 30,
+    "safety_stock": 250,
+    "warehouse": "Warehouse HAZ-01"
+  },
+  {
+    "component_id": "COMP-110",
+    "name": "OLED Graphic Display 128x64",
+    "current_stock": 350,
+    "usable_stock": 320,
+    "daily_usage": 20,
+    "safety_stock": 150,
+    "warehouse": "Warehouse A-08"
+  },
+  {
+    "component_id": "COMP-111",
+    "name": "Rotary Encoder with Switch",
+    "current_stock": 450,
+    "usable_stock": 420,
+    "daily_usage": 25,
+    "safety_stock": 180,
+    "warehouse": "Warehouse A-09"
+  },
+  {
+    "component_id": "COMP-112",
+    "name": "USB-C Interface Controller",
+    "current_stock": 850,
+    "usable_stock": 800,
+    "daily_usage": 45,
+    "safety_stock": 300,
+    "warehouse": "Warehouse B-01"
+  },
+  {
+    "component_id": "COMP-113",
+    "name": "NTC Thermistor 10k",
+    "current_stock": 2200,
+    "usable_stock": 2150,
+    "daily_usage": 110,
+    "safety_stock": 600,
+    "warehouse": "Warehouse C-05"
+  },
+  {
+    "component_id": "COMP-114",
+    "name": "Silicone Thermal Pad 2mm",
+    "current_stock": 900,
+    "usable_stock": 850,
+    "daily_usage": 50,
+    "safety_stock": 250,
+    "warehouse": "Warehouse A-18"
+  },
+  {
+    "component_id": "COMP-115",
+    "name": "Brass Standoff M3x10",
+    "current_stock": 4000,
+    "usable_stock": 3950,
+    "daily_usage": 220,
+    "safety_stock": 1200,
+    "warehouse": "Warehouse D-01"
+  },
+  {
+    "component_id": "COMP-116",
+    "name": "Torx Screw M3x6 Black",
+    "current_stock": 10000,
+    "usable_stock": 9800,
+    "daily_usage": 500,
+    "safety_stock": 2500,
+    "warehouse": "Warehouse D-02"
+  },
+  {
+    "component_id": "COMP-117",
+    "name": "EPDM Gasket Seal O-Ring",
+    "current_stock": 1500,
+    "usable_stock": 1450,
+    "daily_usage": 70,
+    "safety_stock": 400,
+    "warehouse": "Warehouse D-05"
+  },
+  {
+    "component_id": "COMP-118",
+    "name": "Piezo Buzzer 85dB",
+    "current_stock": 700,
+    "usable_stock": 680,
+    "daily_usage": 35,
+    "safety_stock": 200,
+    "warehouse": "Warehouse B-08"
+  },
+  {
+    "component_id": "COMP-119",
+    "name": "Precision Current Shunt 5mR",
+    "current_stock": 60,
+    "usable_stock": 25,
+    "daily_usage": 30,
+    "safety_stock": 150,
+    "warehouse": "Warehouse B-10"
+  },
+  {
+    "component_id": "COMP-120",
+    "name": "Glass Epoxy PCB 4-Layer",
+    "current_stock": 500,
+    "usable_stock": 480,
+    "daily_usage": 28,
+    "safety_stock": 200,
+    "warehouse": "Warehouse A-22"
+  }
+]

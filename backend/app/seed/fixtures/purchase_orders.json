@@ -1,0 +1,122 @@
+[
+  {
+    "po_id": "PO-7712",
+    "component_id": "COMP-104",
+    "supplier_id": "SUP-21",
+    "quantity": 300,
+    "expected_delivery": "2026-08-20T00:00:00Z",
+    "status": "delayed",
+    "unit_price": 480.00,
+    "total_value": 144000.00,
+    "approval_required_above": 150000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7718",
+    "component_id": "COMP-101",
+    "supplier_id": "SUP-12",
+    "quantity": 200,
+    "expected_delivery": "2026-08-21T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 340.00,
+    "total_value": 68000.00,
+    "approval_required_above": 100000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7725",
+    "component_id": "COMP-104",
+    "supplier_id": "SUP-34",
+    "quantity": 350,
+    "expected_delivery": "2026-08-28T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 540.00,
+    "total_value": 189000.00,
+    "approval_required_above": 150000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7730",
+    "component_id": "COMP-105",
+    "supplier_id": "SUP-22",
+    "quantity": 1200,
+    "expected_delivery": "2026-08-30T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 140.00,
+    "total_value": 168000.00,
+    "approval_required_above": 120000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7735",
+    "component_id": "COMP-102",
+    "supplier_id": "SUP-15",
+    "quantity": 500,
+    "expected_delivery": "2026-08-27T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 85.00,
+    "total_value": 42500.00,
+    "approval_required_above": 100000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7740",
+    "component_id": "COMP-103",
+    "supplier_id": "SUP-18",
+    "quantity": 1000,
+    "expected_delivery": "2026-08-26T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 38.00,
+    "total_value": 38000.00,
+    "approval_required_above": 100000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7745",
+    "component_id": "COMP-106",
+    "supplier_id": "SUP-28",
+    "quantity": 10000,
+    "expected_delivery": "2026-08-25T00:00:00Z",
+    "status": "delivered",
+    "unit_price": 4.50,
+    "total_value": 45000.00,
+    "approval_required_above": 100000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7750",
+    "component_id": "COMP-107",
+    "supplier_id": "SUP-33",
+    "quantity": 2000,
+    "expected_delivery": "2026-08-29T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 9.20,
+    "total_value": 18400.00,
+    "approval_required_above": 50000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7755",
+    "component_id": "COMP-119",
+    "supplier_id": "SUP-10",
+    "quantity": 100,
+    "expected_delivery": "2026-08-22T00:00:00Z",
+    "status": "delayed",
+    "unit_price": 95.00,
+    "total_value": 9500.00,
+    "approval_required_above": 20000.00,
+    "version": 1
+  },
+  {
+    "po_id": "PO-7760",
+    "component_id": "COMP-120",
+    "supplier_id": "SUP-22",
+    "quantity": 300,
+    "expected_delivery": "2026-09-02T00:00:00Z",
+    "status": "in_transit",
+    "unit_price": 180.00,
+    "total_value": 54000.00,
+    "approval_required_above": 100000.00,
+    "version": 1
+  }
+]

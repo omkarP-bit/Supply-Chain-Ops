@@ -4,6 +4,8 @@ Phase 12: End-to-end scenario integration tests.
 Uses subprocess-based testing (starts uvicorn, hits with requests).
 Tests 6 disruption scenarios against COMP-104 seed data.
 """
+import os
+import sys
 import subprocess
 import time
 import requests
@@ -15,16 +17,20 @@ TIMEOUT = 15
 
 @pytest.fixture(scope="module")
 def server():
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     proc = subprocess.Popen(
-        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8951"],
-        cwd="/home/OmkarArch/Documents/Projects/Supply Chain OPS/backend",
+        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8951"],
+        cwd=backend_dir,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
     time.sleep(4)
     yield proc
     proc.terminate()
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
 
 
 def _create_incident(s, **overrides) -> str:

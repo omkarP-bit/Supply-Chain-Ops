@@ -1,88 +1,200 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import Layout from '../components/Layout';
-import StatusBadge from '../components/StatusBadge';
-import { Card, Loading, Error } from '../components/UI';
+import { Card, Button, Spinner, Table, Th, Td } from '../components/UI';
 
 export default function Approvals() {
-  const [approvals, setApprovals] = useState([]);
+  const [escalations, setEscalations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState(null);
-  const [acting, setActing] = useState(null);
+  const [tab, setTab] = useState('pending'); // 'pending' | 'resolved'
+  const [noteInputs, setNoteInputs] = useState({});
 
-  const refresh = () => {
-    setLoading(true);
-    api.listApprovals()
-      .then(setApprovals)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(refresh, []);
-
-  const handleApprove = async (id) => {
-    setActing(id);
+  const loadEscalations = async () => {
     try {
-      await api.approveRequest(id);
-      refresh();
-    } catch (e) { alert(e.message); }
-    setActing(null);
+      setLoading(true);
+      setError(null);
+      const data = await api.listEscalations();
+      setEscalations(data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = async (id) => {
-    const reason = prompt('Rejection reason:');
-    if (reason === null) return;
-    setActing(id);
+  useEffect(() => {
+    loadEscalations();
+  }, []);
+
+  const handleResolve = async (escalationId, decision) => {
     try {
-      await api.rejectRequest(id, reason);
-      refresh();
-    } catch (e) { alert(e.message); }
-    setActing(null);
+      setActionLoading(escalationId);
+      const note = noteInputs[escalationId] || '';
+      await api.resolveEscalation(escalationId, decision, note);
+      await loadEscalations();
+    } catch (err) {
+      alert(`Resolution failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  if (loading) return <Layout><Loading /></Layout>;
-  if (error) return <Layout><Error message={error} /></Layout>;
+  const handleNoteChange = (id, val) => {
+    setNoteInputs((prev) => ({ ...prev, [id]: val }));
+  };
+
+  const pendingList = escalations.filter((e) => e.status === 'pending');
+  const resolvedList = escalations.filter((e) => e.status !== 'pending');
+  const currentList = tab === 'pending' ? pendingList : resolvedList;
 
   return (
     <Layout>
-      <h2 style={{ margin: '0 0 20px', fontSize: 22, fontWeight: 700, color: '#1a1a2e' }}>Approval Queue</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#1e293b' }}>
+            Human Escalation & Approval Queue
+          </h1>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 14 }}>
+            Review high-cost purchase orders and critical operational deviations requiring manager sign-off
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setTab('pending')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: 'none',
+              background: tab === 'pending' ? '#1e293b' : '#e2e8f0',
+              color: tab === 'pending' ? '#fff' : '#475569',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Pending ({pendingList.length})
+          </button>
+          <button
+            onClick={() => setTab('resolved')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: 'none',
+              background: tab === 'resolved' ? '#1e293b' : '#e2e8f0',
+              color: tab === 'resolved' ? '#fff' : '#475569',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Resolved History ({resolvedList.length})
+          </button>
+        </div>
+      </div>
 
-      {approvals.length === 0 ? (
-        <Card>
-          <div style={{ padding: 30, textAlign: 'center', color: '#999' }}>
-            No pending approvals
-          </div>
+      {error && (
+        <div style={{ padding: 14, background: '#fee2e2', color: '#991b1b', borderRadius: 8, marginBottom: 20 }}>
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60 }}><Spinner size="lg" /></div>
+      ) : currentList.length === 0 ? (
+        <Card style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          {tab === 'pending'
+            ? 'No pending escalations. All operational alerts are within normal thresholds.'
+            : 'No resolved escalation history yet.'}
         </Card>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {approvals.map((a) => (
-            <Card key={a.approval_id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                    <StatusBadge status={a.status} />
-                    <code style={{ fontSize: 12 }}>{a.approval_id?.slice(0, 8)}</code>
-                    <span style={{ fontSize: 12, color: '#666' }}>
-                      Incident: {a.incident_id?.slice(0, 8)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {currentList.map((esc) => (
+            <Card key={esc.escalation_id} style={{ padding: 20, borderLeft: `5px solid ${esc.status === 'pending' ? '#f59e0b' : esc.status === 'approved' ? '#10b981' : '#ef4444'}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 280 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        background: esc.status === 'pending' ? '#fef3c7' : esc.status === 'approved' ? '#d1fae5' : '#fee2e2',
+                        color: esc.status === 'pending' ? '#b45309' : esc.status === 'approved' ? '#065f46' : '#991b1b',
+                      }}
+                    >
+                      {esc.status}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      ID: <code>{esc.escalation_id.slice(0, 8)}</code>
+                    </span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>•</span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      Created: {new Date(esc.created_at).toLocaleString()}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#444' }}>
-                    <div><strong>Plan:</strong> {a.plan_id?.slice(0, 8)}</div>
-                    <div><strong>Type:</strong> {a.approval_type}</div>
-                    {a.requested_at && <div><strong>Requested:</strong> {new Date(a.requested_at).toLocaleString()}</div>}
-                  </div>
+
+                  <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#0f172a', fontWeight: 600 }}>
+                    {esc.brief}
+                  </h3>
+
+                  {esc.cost_delta !== null && (
+                    <div style={{ display: 'inline-block', background: '#f1f5f9', padding: '4px 10px', borderRadius: 4, fontSize: 13, color: '#334155', marginBottom: 8 }}>
+                      <strong>Threshold Delta:</strong> +INR {Number(esc.cost_delta).toLocaleString()}
+                    </div>
+                  )}
+
+                  {esc.resolved_by && (
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                      Resolved by <strong>{esc.resolved_by}</strong> at {new Date(esc.resolved_at).toLocaleString()}
+                    </div>
+                  )}
                 </div>
 
-                {a.status === 'PENDING' && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleApprove(a.approval_id)} disabled={acting === a.approval_id} style={{
-                      padding: '6px 14px', borderRadius: 6, border: '1px solid #2e7d32', background: '#2e7d32',
-                      color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    }}>Approve</button>
-                    <button onClick={() => handleReject(a.approval_id)} disabled={acting === a.approval_id} style={{
-                      padding: '6px 14px', borderRadius: 6, border: '1px solid #c62828', background: '#fff',
-                      color: '#c62828', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    }}>Reject</button>
+                {esc.status === 'pending' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 260 }}>
+                    <input
+                      type="text"
+                      placeholder="Optional approval/rejection notes..."
+                      value={noteInputs[esc.escalation_id] || ''}
+                      onChange={(e) => handleNoteChange(esc.escalation_id, e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button
+                        onClick={() => handleResolve(esc.escalation_id, 'approve')}
+                        disabled={actionLoading === esc.escalation_id}
+                        style={{
+                          flex: 1,
+                          background: '#10b981',
+                          borderColor: '#10b981',
+                          color: '#fff',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {actionLoading === esc.escalation_id ? <Spinner size="sm" /> : '✓ Approve'}
+                      </Button>
+                      <Button
+                        onClick={() => handleResolve(esc.escalation_id, 'reject')}
+                        disabled={actionLoading === esc.escalation_id}
+                        style={{
+                          flex: 1,
+                          background: '#ef4444',
+                          borderColor: '#ef4444',
+                          color: '#fff',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {actionLoading === esc.escalation_id ? <Spinner size="sm" /> : '✕ Reject'}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
