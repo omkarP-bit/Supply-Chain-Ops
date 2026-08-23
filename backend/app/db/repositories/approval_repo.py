@@ -15,6 +15,16 @@ async def get_approval(session: AsyncSession, approval_id: str) -> ApprovalReque
         select(ApprovalRequest).where(ApprovalRequest.approval_id == approval_id)
     )).scalar_one_or_none()
 
+async def get_pending_approval_for_plan(
+    session: AsyncSession, plan_id: str
+) -> ApprovalRequest | None:
+    return (await session.execute(
+        select(ApprovalRequest).where(
+            ApprovalRequest.plan_id == plan_id,
+            ApprovalRequest.status == "PENDING",
+        )
+    )).scalar_one_or_none()
+
 async def list_pending_approvals(session: AsyncSession) -> list[ApprovalRequest]:
     q = (
         select(ApprovalRequest)

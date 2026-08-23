@@ -9,11 +9,13 @@ from app.engines.risk_engine import OperationalRiskEngine
 from app.engines.supplier_engine import SupplierEvaluationEngine
 from app.schemas.recovery import AnalysisResponse, PlanResponse
 from app.services.llm_provider import get_plan_suggestions
+from app.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v1", tags=["recovery"])
 
 risk_engine = OperationalRiskEngine()
 supplier_engine = SupplierEvaluationEngine()
+workflow_service = WorkflowService()
 
 
 @router.post("/incidents/{incident_id}/analyze", response_model=AnalysisResponse)
@@ -126,7 +128,7 @@ async def recommend_plans(
             incident_id=incident_id,
             plan_name=s["plan_name"],
             plan_type=s["plan_type"],
-            plan_details=s.get("plan_details"),
+            plan_details={**(s.get("plan_details") or {}), "material_id": incident.material_id},
             estimated_cost=Decimal(str(s.get("estimated_cost", 0))),
             estimated_delivery_days=Decimal(str(s.get("estimated_delivery_days", 0))),
             production_impact_hours=Decimal(str(s.get("production_impact_hours", 0))),
@@ -136,6 +138,10 @@ async def recommend_plans(
             overall_score=Decimal(str(s.get("overall_score", 0))),
         )
         created_plans.append(plan)
+
+    valid_plans = [p for p in created_plans if p.status != "INVALID"]
+    if valid_plans:
+        await workflow_service.request_plan_approval(db, valid_plans[0].plan_id)
 
     return created_plans
 

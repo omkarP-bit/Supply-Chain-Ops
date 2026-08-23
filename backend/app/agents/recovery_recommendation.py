@@ -37,6 +37,11 @@ class RecoveryRecommendationAgent:
         saved_plans: list[dict] = []
         for suggestion in raw_suggestions:
             plan_dict = self._suggestion_to_plan_dict(incident_id, suggestion)
+            plan_dict["material_id"] = incident.material_id
+            plan_dict["plan_details"] = {
+                **(plan_dict.get("plan_details") or {}),
+                "material_id": incident.material_id,
+            }
 
             validation_report = await self.validation_engine.validate_plan(session, plan_dict)
 

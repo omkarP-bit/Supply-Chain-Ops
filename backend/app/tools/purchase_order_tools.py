@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, Optional
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -8,6 +9,50 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.procurement import PurchaseOrder, Shipment
+from app.db.models.contract_models import ContractPurchaseOrder
+
+
+async def get_purchase_order(
+    session: AsyncSession, po_id: str
+) -> dict[str, Any] | None:
+    """Retrieve detailed purchase order status from database."""
+    # First check ContractPurchaseOrder
+    c_res = await session.execute(
+        select(ContractPurchaseOrder).where(ContractPurchaseOrder.po_id == po_id)
+    )
+    c_po = c_res.scalar_one_or_none()
+    if c_po:
+        return {
+            "po_id": c_po.po_id,
+            "component_id": c_po.component_id,
+            "supplier_id": c_po.supplier_id,
+            "quantity": c_po.quantity,
+            "expected_delivery": c_po.expected_delivery.isoformat() if c_po.expected_delivery else None,
+            "status": c_po.status,
+            "unit_price": float(c_po.unit_price),
+            "total_value": float(c_po.total_value),
+            "approval_required_above": float(c_po.approval_required_above),
+        }
+
+    # Then check procurement PurchaseOrder
+    p_res = await session.execute(
+        select(PurchaseOrder).where(PurchaseOrder.po_id == po_id)
+    )
+    p_po = p_res.scalar_one_or_none()
+    if p_po:
+        return {
+            "po_id": p_po.po_id,
+            "component_id": p_po.material_id,
+            "supplier_id": p_po.supplier_id,
+            "quantity": float(p_po.ordered_quantity),
+            "expected_delivery": p_po.expected_delivery_date.isoformat() if p_po.expected_delivery_date else None,
+            "status": p_po.status,
+            "unit_price": float(p_po.unit_price),
+            "total_value": float(p_po.total_cost),
+            "approval_required_above": 75000.0,
+        }
+
+    return None
 
 
 async def create_purchase_order(
@@ -17,6 +62,7 @@ async def create_purchase_order(
     quantity: Decimal,
     unit_price: Decimal,
     production_order_id: str | None = None,
+    created_by: str | None = "approved_recovery_workflow",
 ) -> dict:
     po_id = str(uuid.uuid4().hex[:16])
     po_number = f"PO-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{po_id[:8].upper()}"
@@ -38,6 +84,7 @@ async def create_purchase_order(
         status="CONFIRMED",
         priority="NORMAL",
         production_order_id=production_order_id,
+        created_by=created_by,
     )
     session.add(po)
 
@@ -62,11 +109,21 @@ async def update_purchase_order_status(
         select(PurchaseOrder).where(PurchaseOrder.po_id == po_id)
     )
     po = result.scalar_one_or_none()
-    if not po:
-        return False
-    po.status = new_status
-    await session.flush()
-    return True
+    if po:
+        po.status = new_status
+        await session.flush()
+        return True
+
+    c_result = await session.execute(
+        select(ContractPurchaseOrder).where(ContractPurchaseOrder.po_id == po_id)
+    )
+    c_po = c_result.scalar_one_or_none()
+    if c_po:
+        c_po.status = new_status
+        await session.flush()
+        return True
+
+    return False
 
 
 async def split_purchase_order(
@@ -88,13 +145,13 @@ async def split_purchase_order(
         new_po = PurchaseOrder(
             po_id=new_po_id,
             po_number=new_po_number,
-            supplier_id=original.supplier_id,
+            supplier_id=split.get("supplier_id", original.supplier_id),
             material_id=original.material_id,
             ordered_quantity=qty,
             received_quantity=Decimal("0"),
             remaining_quantity=qty,
-            unit_price=original.unit_price,
-            total_cost=qty * original.unit_price,
+            unit_price=Decimal(str(split.get("unit_price", original.unit_price))),
+            total_cost=qty * Decimal(str(split.get("unit_price", original.unit_price))),
             order_date=original.order_date,
             expected_delivery_date=original.expected_delivery_date,
             status="CONFIRMED",

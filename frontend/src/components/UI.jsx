@@ -1,7 +1,7 @@
 import React from 'react';
 
 export function Spinner({ size = 'md' }) {
-  const s = size === 'sm' ? 14 : size === 'lg' ? 28 : 20;
+  const s = size === 'sm' ? 14 : size === 'lg' ? 24 : 18;
   return (
     <div
       style={{
@@ -9,7 +9,7 @@ export function Spinner({ size = 'md' }) {
         width: s,
         height: s,
         border: '2px solid rgba(255,255,255,0.3)',
-        borderTopColor: '#fff',
+        borderTopColor: '#ffffff',
         borderRadius: '50%',
         animation: 'spin 0.6s linear infinite',
       }}
@@ -19,30 +19,32 @@ export function Spinner({ size = 'md' }) {
 
 export function Loading() {
   return (
-    <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-      Loading operational data...
+    <div style={{ padding: 48, textAlign: 'center', color: '#8A919B', fontFamily: 'var(--font-mono)' }}>
+      INITIALIZING SYSTEM TELEMETRY...
     </div>
   );
 }
 
 export function Error({ message }) {
   return (
-    <div style={{ padding: 20, background: '#fee2e2', borderRadius: 8, color: '#991b1b', border: '1px solid #fecaca' }}>
-      {message || 'Something went wrong'}
+    <div style={{ padding: 16, background: '#FFFFFF', borderRadius: 8, color: '#C4302B', border: '1px solid #D5D8DC', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+      [SYSTEM ERROR] {message || 'Operational failure detected.'}
     </div>
   );
 }
 
 export function Card({ children, style = {} }) {
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 10,
-      padding: 20,
-      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-      border: '1px solid #e2e8f0',
-      ...style,
-    }}>
+    <div
+      style={{
+        background: '#FFFFFF',
+        borderRadius: 8,
+        padding: 20,
+        border: '1px solid #D5D8DC',
+        boxShadow: 'none',
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -50,14 +52,19 @@ export function Card({ children, style = {} }) {
 
 export function StatCard({ label, value, color }) {
   return (
-    <Card style={{ textAlign: 'center', minWidth: 140 }}>
-      <div style={{ fontSize: 28, fontWeight: 700, color: color || '#1e293b' }}>{value}</div>
-      <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{label}</div>
+    <Card style={{ textAlign: 'left', minWidth: 140 }}>
+      <div style={{ fontSize: 11, color: '#8A919B', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 700, color: color || '#12161C', marginTop: 4, fontFamily: 'var(--font-heading)' }}>
+        {value}
+      </div>
     </Card>
   );
 }
 
-export function Button({ children, onClick, disabled = false, style = {} }) {
+export function Button({ children, onClick, disabled = false, variant = 'primary', style = {} }) {
+  const isPrimary = variant === 'primary';
   return (
     <button
       onClick={onClick}
@@ -67,16 +74,16 @@ export function Button({ children, onClick, disabled = false, style = {} }) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        padding: '8px 16px',
-        background: '#0f172a',
-        color: '#fff',
-        border: 'none',
+        padding: '7px 16px',
+        background: isPrimary ? '#003DA5' : '#FFFFFF',
+        color: isPrimary ? '#FFFFFF' : '#12161C',
+        border: isPrimary ? '1px solid #003DA5' : '1px solid #D5D8DC',
         borderRadius: 6,
         fontSize: 13,
         fontWeight: 600,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.7 : 1,
-        transition: 'background 0.15s',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'all 0.15s ease',
         ...style,
       }}
     >
@@ -91,16 +98,22 @@ export function Table({ children, columns, rows, onRowClick }) {
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr>
+            <tr style={{ background: '#F4F5F7' }}>
               {columns.map((col) => (
-                <th key={col.key} style={{
-                  textAlign: 'left',
-                  padding: '10px 12px',
-                  borderBottom: '2px solid #e2e8f0',
-                  fontWeight: 600,
-                  color: '#475569',
-                  whiteSpace: 'nowrap',
-                }}>
+                <th
+                  key={col.key}
+                  style={{
+                    textAlign: 'left',
+                    padding: '9px 12px',
+                    borderBottom: '1px solid #D5D8DC',
+                    fontWeight: 700,
+                    color: '#3A4149',
+                    fontSize: 11,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {col.label}
                 </th>
               ))}
@@ -113,14 +126,14 @@ export function Table({ children, columns, rows, onRowClick }) {
                 onClick={() => onRowClick?.(row)}
                 style={{
                   cursor: onRowClick ? 'pointer' : 'default',
-                  borderBottom: '1px solid #f1f5f9',
+                  borderBottom: '1px solid #D5D8DC',
                   transition: 'background 0.1s',
                 }}
-                onMouseEnter={(e) => onRowClick && (e.currentTarget.style.background = '#f8fafc')}
+                onMouseEnter={(e) => onRowClick && (e.currentTarget.style.background = '#F4F5F7')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = '')}
               >
                 {columns.map((col) => (
-                  <td key={col.key} style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                  <td key={col.key} style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: '#12161C' }}>
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
                   </td>
                 ))}
@@ -129,7 +142,7 @@ export function Table({ children, columns, rows, onRowClick }) {
           </tbody>
         </table>
         {rows.length === 0 && (
-          <div style={{ padding: 30, textAlign: 'center', color: '#94a3b8' }}>No data</div>
+          <div style={{ padding: 30, textAlign: 'center', color: '#8A919B', fontFamily: 'var(--font-mono)' }}>NO RECORDS IDENTIFIED</div>
         )}
       </div>
     );
@@ -146,16 +159,21 @@ export function Table({ children, columns, rows, onRowClick }) {
 
 export function Th({ children, style = {} }) {
   return (
-    <th style={{
-      textAlign: 'left',
-      padding: '10px 12px',
-      borderBottom: '2px solid #e2e8f0',
-      fontWeight: 600,
-      color: '#475569',
-      whiteSpace: 'nowrap',
-      fontSize: 13,
-      ...style,
-    }}>
+    <th
+      style={{
+        textAlign: 'left',
+        padding: '9px 12px',
+        background: '#F4F5F7',
+        borderBottom: '1px solid #D5D8DC',
+        fontWeight: 700,
+        color: '#3A4149',
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        whiteSpace: 'nowrap',
+        ...style,
+      }}
+    >
       {children}
     </th>
   );
@@ -163,13 +181,15 @@ export function Th({ children, style = {} }) {
 
 export function Td({ children, style = {} }) {
   return (
-    <td style={{
-      padding: '10px 12px',
-      borderBottom: '1px solid #f1f5f9',
-      color: '#1e293b',
-      fontSize: 13,
-      ...style,
-    }}>
+    <td
+      style={{
+        padding: '10px 12px',
+        borderBottom: '1px solid #D5D8DC',
+        color: '#12161C',
+        fontSize: 13,
+        ...style,
+      }}
+    >
       {children}
     </td>
   );

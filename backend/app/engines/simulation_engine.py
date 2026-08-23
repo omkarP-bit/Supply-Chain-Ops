@@ -34,10 +34,14 @@ class SimulationEngine:
         self, session: AsyncSession, plan_dict: dict[str, Any]
     ) -> SimulationResult:
         material_id = plan_dict["material_id"]
-        supplier_id = plan_dict["supplier_id"]
-        required_quantity = Decimal(str(plan_dict.get("required_quantity", 0)))
+        supplier_id = plan_dict.get("supplier_id") or "SUP-34"
+        allocations = plan_dict.get("allocations") or (plan_dict.get("plan_details") or {}).get("allocations")
+        if allocations:
+            required_quantity = sum(Decimal(str(a.get("quantity", 0))) for a in allocations)
+        else:
+            required_quantity = Decimal(str(plan_dict.get("required_quantity", 0)))
         unit_price = Decimal(str(plan_dict.get("unit_price", 0)))
-        deadline_days = int(plan_dict.get("deadline_days", 0))
+        deadline_days = int(plan_dict.get("deadline_days") or 0)
         plan_id = plan_dict.get("plan_id", str(uuid.uuid4()))
 
         snapshot = await self.risk_engine.get_current_inventory(session, material_id)

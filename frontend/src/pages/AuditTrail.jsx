@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Layout from '../components/Layout';
-import { Card, Spinner, Table, Th, Td } from '../components/UI';
+import { Card, Spinner, Table, Th, Td, Button } from '../components/UI';
 
 export default function AuditTrail() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialEntity = searchParams.get('entity_id') || searchParams.get('incident_id') || '';
+
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchEntity, setSearchEntity] = useState('');
+  const [searchEntity, setSearchEntity] = useState(initialEntity);
   const [selectedType, setSelectedType] = useState('ALL');
   const [error, setError] = useState(null);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -33,73 +37,88 @@ export default function AuditTrail() {
     ? logs
     : logs.filter((l) => l.event_type === selectedType);
 
-  const eventTypes = ['ALL', ...Array.from(new Set(logs.map((l) => l.event_type)))];
+  const eventTypes = ['ALL', ...Array.from(new Set(logs.map((l) => l.event_type).filter(Boolean)))];
+
+  const getEventTextColor = (type) => {
+    if (!type) return '#3A4149';
+    const t = type.toUpperCase();
+    if (t.includes('PASS') || t.includes('RESOLVED') || t.includes('AUTHORIZED') || t.includes('SUCCESS')) return '#1E8E5A';
+    if (t.includes('FAIL') || t.includes('REJECT') || t.includes('CRITICAL') || t.includes('SHUTDOWN')) return '#C4302B';
+    if (t.includes('APPROVAL') || t.includes('PENDING') || t.includes('DELAY') || t.includes('RISK')) return '#B98900';
+    return '#3A4149';
+  };
 
   return (
     <Layout>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#1e293b' }}>
-            System Audit & Governance Trail
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#12161C', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Audit & Governance Log
           </h1>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 14 }}>
-            Immutable chronological record of automated agent actions, rule evaluations, and human decisions
+          <p style={{ margin: '2px 0 0', color: '#8A919B', fontSize: 12 }}>
+            Immutable chronological record of automated agent reasoning, constraint checks & human authorizations
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="text"
-            placeholder="Filter by entity ID (e.g. PO-7712)..."
+            placeholder="Filter by entity / incident ID..."
             value={searchEntity}
             onChange={(e) => setSearchEntity(e.target.value)}
             style={{
-              padding: '8px 14px',
-              border: '1px solid #cbd5e1',
-              borderRadius: 6,
-              fontSize: 13,
-              width: 250,
+              padding: '6px 12px',
+              border: '1px solid #D5D8DC',
+              borderRadius: 4,
+              fontSize: 12,
+              width: 240,
               outline: 'none',
+              fontFamily: 'var(--font-mono)',
+              background: '#FFFFFF',
             }}
           />
+          <Button onClick={loadAuditLogs} variant="secondary" style={{ fontSize: 12, padding: '6px 12px' }}>
+            ↻ Refresh
+          </Button>
         </div>
       </div>
 
       {error && (
-        <div style={{ padding: 14, background: '#fee2e2', color: '#991b1b', borderRadius: 8, marginBottom: 20 }}>
-          {error}
+        <div style={{ padding: 12, background: '#FFFFFF', color: '#C4302B', borderRadius: 6, marginBottom: 16, border: '1px solid #D5D8DC', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+          [AUDIT FAULT] {error}
         </div>
       )}
 
       {/* Filter Chips */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
         {eventTypes.map((type) => (
           <button
             key={type}
             onClick={() => setSelectedType(type)}
             style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #cbd5e1',
-              background: selectedType === type ? '#1e293b' : '#fff',
-              color: selectedType === type ? '#fff' : '#475569',
-              fontSize: 12,
+              padding: '5px 10px',
+              borderRadius: 4,
+              border: '1px solid #D5D8DC',
+              background: selectedType === type ? '#12161C' : '#FFFFFF',
+              color: selectedType === type ? '#FFFFFF' : '#3A4149',
+              fontSize: 11,
               fontWeight: 600,
+              fontFamily: 'var(--font-mono)',
               cursor: 'pointer',
             }}
           >
-            {type === 'ALL' ? 'All Events' : type}
+            {type === 'ALL' ? 'ALL EVENTS' : type}
           </button>
         ))}
       </div>
 
       {/* Audit Log Table */}
-      <Card style={{ padding: 20 }}>
+      <Card style={{ padding: 18 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60 }}><Spinner size="lg" /></div>
+          <div style={{ textAlign: 'center', padding: 50, color: '#8A919B', fontFamily: 'var(--font-mono)' }}><Spinner size="lg" /></div>
         ) : filteredLogs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>
-            No audit events found. Run an alert scan or approve an escalation to generate log events.
+          <div style={{ textAlign: 'center', padding: 30, color: '#8A919B', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+            NO AUDIT RECORDS FOUND FOR QUERY.
           </div>
         ) : (
           <Table>
@@ -107,69 +126,64 @@ export default function AuditTrail() {
               <tr>
                 <Th>Timestamp</Th>
                 <Th>Event Type</Th>
-                <Th>Entity</Th>
-                <Th>Actor</Th>
-                <Th>State Change Details</Th>
+                <Th>Entity Reference</Th>
+                <Th>Agent / Actor</Th>
+                <Th>Action & State Outcome</Th>
+                <Th>Telemetry</Th>
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map((log) => (
-                <tr key={log.audit_id}>
-                  <Td style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
-                    {new Date(log.ts).toLocaleString()}
+              {filteredLogs.map((log, idx) => (
+                <tr key={log.audit_id || idx}>
+                  <Td style={{ fontSize: 11, color: '#8A919B', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+                    {log.ts ? new Date(log.ts).toLocaleString() : '-'}
                   </Td>
                   <Td>
                     <span
                       style={{
-                        padding: '3px 8px',
-                        borderRadius: 4,
                         fontSize: 11,
                         fontWeight: 700,
-                        textTransform: 'uppercase',
-                        background:
-                          log.event_type === 'escalation_resolved'
-                            ? '#d1fae5'
-                            : log.event_type === 'escalation_created'
-                            ? '#fef3c7'
-                            : '#ede9fe',
-                        color:
-                          log.event_type === 'escalation_resolved'
-                            ? '#065f46'
-                            : log.event_type === 'escalation_created'
-                            ? '#b45309'
-                            : '#6d28d9',
+                        fontFamily: 'var(--font-mono)',
+                        color: getEventTextColor(log.event_type),
                       }}
                     >
-                      {log.event_type}
+                      ● {log.event_type}
                     </span>
                   </Td>
                   <Td>
-                    <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>
+                    <code style={{ color: '#003DA5', fontWeight: 600 }}>
                       {log.entity_type}:{log.entity_id}
                     </code>
                   </Td>
                   <Td>
-                    {log.actor ? (
-                      <strong style={{ color: '#0f172a' }}>{log.actor}</strong>
+                    <strong style={{ color: '#12161C', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{log.actor}</strong>
+                  </Td>
+                  <Td style={{ fontSize: 12, color: '#3A4149', maxWidth: 300 }}>
+                    {log.action ? (
+                      <div>
+                        <strong>{log.action}</strong>
+                        {log.reason && <div style={{ color: '#8A919B', fontSize: 11 }}>{log.reason}</div>}
+                      </div>
                     ) : (
-                      <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>System / Autonomous</span>
+                      <span>{log.reason || JSON.stringify(log.details)?.slice(0, 80) || '-'}</span>
                     )}
                   </Td>
                   <Td>
                     <button
                       onClick={() => setSelectedLog(log)}
                       style={{
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        background: '#f8fafc',
-                        border: '1px solid #cbd5e1',
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        background: '#F4F5F7',
+                        border: '1px solid #D5D8DC',
                         borderRadius: 4,
                         cursor: 'pointer',
                         fontWeight: 600,
-                        color: '#2563eb',
+                        color: '#003DA5',
+                        fontFamily: 'var(--font-mono)',
                       }}
                     >
-                      Inspect JSON Payload
+                      INSPECT
                     </button>
                   </Td>
                 </tr>
@@ -185,7 +199,7 @@ export default function AuditTrail() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.5)',
+            background: 'rgba(18,22,28,0.7)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -195,45 +209,46 @@ export default function AuditTrail() {
         >
           <div
             style={{
-              background: '#fff',
-              padding: 24,
+              background: '#FFFFFF',
+              padding: 20,
               borderRadius: 8,
-              maxWidth: 600,
+              maxWidth: 650,
               width: '90%',
               maxHeight: '80vh',
               overflowY: 'auto',
+              border: '1px solid #D5D8DC',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 18, color: '#1e293b' }}>
-                Audit Event: {selectedLog.event_type}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid #D5D8DC', paddingBottom: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 15, color: '#12161C', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                AUDIT TELEMETRY: {selectedLog.event_type}
               </h3>
               <button
                 onClick={() => setSelectedLog(null)}
-                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer' }}
+                style={{ border: 'none', background: 'transparent', fontSize: 16, cursor: 'pointer', color: '#8A919B' }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ marginBottom: 12, fontSize: 13 }}>
-              <strong>Entity:</strong> {selectedLog.entity_type}:{selectedLog.entity_id} | <strong>Actor:</strong> {selectedLog.actor || 'System'}
+            <div style={{ marginBottom: 12, fontSize: 12, background: '#F4F5F7', padding: 8, borderRadius: 4, fontFamily: 'var(--font-mono)' }}>
+              <strong>ENTITY:</strong> <code>{selectedLog.entity_type}:{selectedLog.entity_id}</code> | <strong>ACTOR:</strong> {selectedLog.actor}
             </div>
 
-            {selectedLog.before && (
+            {selectedLog.before && Object.keys(selectedLog.before).length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Before State:</div>
-                <pre style={{ background: '#f8fafc', padding: 10, borderRadius: 6, fontSize: 12, overflowX: 'auto' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#8A919B', textTransform: 'uppercase', marginBottom: 4 }}>Before / Input State:</div>
+                <pre style={{ background: '#F4F5F7', padding: 10, borderRadius: 4, fontSize: 11, border: '1px solid #D5D8DC', overflowX: 'auto', fontFamily: 'var(--font-mono)' }}>
                   {JSON.stringify(selectedLog.before, null, 2)}
                 </pre>
               </div>
             )}
 
-            {selectedLog.after && (
+            {selectedLog.after && Object.keys(selectedLog.after).length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>After / Captured State:</div>
-                <pre style={{ background: '#f8fafc', padding: 10, borderRadius: 6, fontSize: 12, overflowX: 'auto' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#8A919B', textTransform: 'uppercase', marginBottom: 4 }}>After / Captured State:</div>
+                <pre style={{ background: '#F4F5F7', padding: 10, borderRadius: 4, fontSize: 11, border: '1px solid #D5D8DC', overflowX: 'auto', fontFamily: 'var(--font-mono)' }}>
                   {JSON.stringify(selectedLog.after, null, 2)}
                 </pre>
               </div>

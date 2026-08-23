@@ -1,41 +1,44 @@
 import React from 'react';
 
 const STEPS = [
-  { id: 'detect', label: '1. Disruption Detection', sub: 'Alert Engine (5 Rules)' },
-  { id: 'supervisor', label: '2. Supervisor Analysis', sub: 'Risk & 7d/30d Trend' },
-  { id: 'supplier', label: '3. Hard Filtering', sub: 'AQL, Certs & MOQ' },
-  { id: 'recovery', label: '4. Recovery Agent', sub: 'LLM Multi-Sourcing' },
-  { id: 'simulation', label: '5. What-If Sim', sub: 'Validation & Stress Test' },
-  { id: 'approval', label: '6. Human Approval', sub: 'Manager Sign-off' },
-  { id: 'verify', label: '7. Verification', sub: 'Continuous Loop' },
+  { id: 'detect', label: '1. Detect', sub: 'Disruption Identified' },
+  { id: 'assess', label: '2. Assess', sub: 'Operational Risk' },
+  { id: 'evaluate', label: '3. Evaluate', sub: 'Supplier Eligibility' },
+  { id: 'plan', label: '4. Plan', sub: 'Multi-Sourcing Strategy' },
+  { id: 'validate', label: '5. Validate', sub: 'Stress Testing' },
+  { id: 'approve', label: '6. Approve', sub: 'Human Authorization' },
+  { id: 'execute', label: '7. Execute', sub: 'ERP PO Dispatch' },
+  { id: 'verify', label: '8. Verify', sub: 'Post-Execution Audit' },
+  { id: 'resolve', label: '9. Resolve', sub: 'Continuity Restored' },
 ];
 
 export default function WorkflowStepper({ currentStep = 'detect', onStepClick }) {
-  const getStepIndex = (id) => {
-    const map = {
-      detect: 0,
-      scan: 0,
-      analyze: 1,
-      analyzing: 1,
-      supervisor: 1,
-      supplier: 2,
-      recovery: 3,
-      recommending: 3,
-      proposed: 3,
-      simulation: 4,
-      validated: 4,
-      approval: 5,
-      pending_approval: 5,
-      approved: 5,
-      executing: 5,
-      verify: 6,
-      completed: 6,
-      resolved: 6,
-    };
-    return map[currentStep?.toLowerCase()] ?? 0;
+  const getStepIndex = (raw) => {
+    const s = String(raw || '').toLowerCase();
+    if (s.includes('detect') || s.includes('scan') || s === 'open') return 0;
+    if (s.includes('assess') || s.includes('analyz') || s.includes('supervisor')) return 1;
+    if (s.includes('evaluat') || s.includes('supplier')) return 2;
+    if (s.includes('plan') || s.includes('recommend')) return 3;
+    if (s.includes('validat') || s.includes('simulat')) return 4;
+    if (s.includes('approv') || s.includes('pending')) return 5;
+    if (s.includes('execut')) return 6;
+    if (s.includes('verify') || s.includes('verif')) return 7;
+    if (s.includes('replan')) return 3;
+    if (s.includes('resolv') || s.includes('complet')) return 8;
+    return 5;
   };
 
   const activeIdx = getStepIndex(currentStep);
+
+  const getStatusLabel = () => {
+    const s = String(currentStep || '').toUpperCase();
+    if (s.includes('APPROV') || s.includes('PENDING')) return 'WAITING FOR HUMAN APPROVAL';
+    if (s.includes('EXECUT')) return 'EXECUTING';
+    if (s.includes('VERIF')) return 'VERIFYING OUTCOME';
+    if (s.includes('REPLAN')) return 'REPLANNING';
+    if (s.includes('RESOLV') || s.includes('COMPLET')) return 'RESOLVED';
+    return STEPS[activeIdx]?.label.toUpperCase() || 'IN PROGRESS';
+  };
 
   return (
     <div
@@ -44,34 +47,34 @@ export default function WorkflowStepper({ currentStep = 'detect', onStepClick })
         border: '1px solid #e2e8f0',
         borderRadius: 12,
         padding: '16px 20px',
-        marginBottom: 24,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        marginBottom: 20,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            ⚡ Autonomous Agent Workflow Stage
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Operational Workflow Engine
           </span>
           <span
             style={{
               fontSize: 11,
-              padding: '2px 8px',
+              padding: '3px 10px',
               borderRadius: 12,
-              background: '#e0f2fe',
-              color: '#0369a1',
-              fontWeight: 600,
+              background: currentStep?.toLowerCase().includes('approv') ? '#fef3c7' : '#e0f2fe',
+              color: currentStep?.toLowerCase().includes('approv') ? '#92400e' : '#0369a1',
+              fontWeight: 700,
             }}
           >
-            Phase: {STEPS[activeIdx]?.label || 'Active'}
+            ● {getStatusLabel()}
           </span>
         </div>
-        <span style={{ fontSize: 12, color: '#64748b' }}>
-          Loop: <strong>Observe → Decide → Act → Verify → Replan</strong>
+        <span style={{ fontSize: 11, color: '#64748b' }}>
+          LangGraph Agentic Loop: <strong>Detect → Assess → Plan → Validate → Approve → Execute → Verify → Resolve</strong>
         </span>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
         {STEPS.map((step, idx) => {
           const isCurrent = idx === activeIdx;
           const isPassed = idx < activeIdx;
@@ -82,8 +85,8 @@ export default function WorkflowStepper({ currentStep = 'detect', onStepClick })
               onClick={() => onStepClick?.(step.id)}
               style={{
                 flex: 1,
-                minWidth: 130,
-                padding: '10px 12px',
+                minWidth: 105,
+                padding: '8px 10px',
                 borderRadius: 8,
                 background: isCurrent
                   ? '#0f172a'
@@ -104,9 +107,12 @@ export default function WorkflowStepper({ currentStep = 'detect', onStepClick })
               </div>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: 9,
                   marginTop: 2,
                   color: isCurrent ? '#94a3b8' : isPassed ? '#15803d' : '#94a3b8',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {step.sub}

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import asdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,46 +47,52 @@ class SupervisorAgent:
         eligible_suppliers: list[dict] = []
 
         if material_id:
-            import uuid as _uuid
-            mat_uuid = _uuid.UUID(material_id) if len(material_id) == 36 else None
-            if mat_uuid:
-                report = await self.risk_engine.calculate_risk(session, mat_uuid)
-                risk_report = {
-                    "material_id": str(report.material_id),
-                    "risk_level": report.risk_level,
-                    "usable_stock": float(report.usable_stock),
-                    "coverage_days": float(report.coverage_days),
-                    "discrepancy_percentage": float(report.discrepancy_percentage),
-                    "hours_to_production_stop": report.hours_to_production_stop,
-                    "affected_orders": len(report.affected_orders),
-                    "trend_7d_vs_30d": report.trend_7d_vs_30d,
-                    "threshold_violations": report.threshold_violations,
-                }
+            report = await self.risk_engine.calculate_risk(session, material_id)
+            risk_report = {
+                "material_id": str(report.material_id),
+                "risk_level": report.risk_level,
+                "usable_stock": float(report.usable_stock),
+                "avg_daily_consumption_30d": float(report.avg_daily_consumption_30d),
+                "avg_daily_consumption_7d": float(report.avg_daily_consumption_7d),
+                "coverage_days": float(report.coverage_days),
+                "inventory_discrepancy": float(report.inventory_discrepancy),
+                "discrepancy_percentage": float(report.discrepancy_percentage),
+                "erp_quantity": float(report.erp_quantity),
+                "physical_quantity": float(report.physical_quantity),
+                "hours_to_production_stop": report.hours_to_production_stop,
+                "affected_orders": len(report.affected_orders),
+                "trend_7d_vs_30d": report.trend_7d_vs_30d,
+                "threshold_violations": report.threshold_violations,
+            }
 
-                candidates = await self.supplier_engine.get_supplier_candidates(
-                    session,
-                    mat_uuid,
-                    required_quantity=abs(float(report.inventory_discrepancy)) if report.inventory_discrepancy < 0 else report.usable_stock,
-                )
-                eligible_suppliers = [
-                    {
-                        "supplier_id": str(c.supplier_id),
-                        "supplier_name": c.supplier_name,
-                        "available_quantity": float(c.available_quantity),
-                        "unit_price": float(c.unit_price),
-                        "currency": c.currency,
-                        "lead_time_days": c.lead_time_days,
-                        "certification_valid": c.certification_valid,
-                        "aql_level": c.aql_level,
-                        "material_grade": c.material_grade,
-                        "quality_score": float(c.quality_score),
-                        "reliability_score": float(c.reliability_score),
-                        "on_time_delivery_rate": float(c.on_time_delivery_rate),
-                        "score": float(c.score),
-                        "rejection_reason": c.rejection_reason,
-                    }
-                    for c in candidates
-                ]
+            candidates = await self.supplier_engine.get_supplier_candidates(
+                session,
+                material_id,
+                required_quantity=(
+                    abs(report.inventory_discrepancy)
+                    if report.inventory_discrepancy < 0
+                    else report.usable_stock
+                ),
+            )
+            eligible_suppliers = [
+                {
+                    "supplier_id": str(c.supplier_id),
+                    "supplier_name": c.supplier_name,
+                    "available_quantity": float(c.available_quantity),
+                    "unit_price": float(c.unit_price),
+                    "currency": c.currency,
+                    "lead_time_days": c.lead_time_days,
+                    "certification_valid": c.certification_valid,
+                    "aql_level": c.aql_level,
+                    "material_grade": c.material_grade,
+                    "quality_score": float(c.quality_score),
+                    "reliability_score": float(c.reliability_score),
+                    "on_time_delivery_rate": float(c.on_time_delivery_rate),
+                    "score": float(c.score),
+                    "rejection_reason": c.rejection_reason,
+                }
+                for c in candidates
+            ]
 
         workflow_state = {
             "incident_id": incident_id,
@@ -101,5 +106,6 @@ class SupervisorAgent:
 
         incident.workflow_state = workflow_state
         await session.flush()
+        await session.commit()
 
         return workflow_state

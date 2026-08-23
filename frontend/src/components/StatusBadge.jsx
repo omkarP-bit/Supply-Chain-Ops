@@ -1,35 +1,48 @@
 import React from 'react';
 
-const statusColors = {
-  OPEN:              { bg: '#e3f2fd', text: '#1565c0' },
-  IN_PROGRESS:       { bg: '#fff3e0', text: '#e65100' },
-  RESOLVED:          { bg: '#e8f5e9', text: '#2e7d32' },
-  CLOSED:            { bg: '#f5f5f5', text: '#616161' },
-  PENDING:           { bg: '#fff8e1', text: '#f57f17' },
-  APPROVED:          { bg: '#e8f5e9', text: '#2e7d32' },
-  REJECTED:          { bg: '#ffebee', text: '#c62828' },
-  PROPOSED:          { bg: '#e3f2fd', text: '#1565c0' },
-  ACTIVE:            { bg: '#e8f5e9', text: '#2e7d32' },
-  INACTIVE:          { bg: '#f5f5f5', text: '#616161' },
-  DELAYED:           { bg: '#ffebee', text: '#c62828' },
-  ON_TRACK:          { bg: '#e8f5e9', text: '#2e7d32' },
-  EMERGENCY_PROCUREMENT: { bg: '#ffebee', text: '#c62828' },
-  PRODUCTION_ADJUSTMENT: { bg: '#fff3e0', text: '#e65100' },
-  MONITORING:        { bg: '#e3f2fd', text: '#1565c0' },
+const statusTextColor = {
+  RESOLVED:              '#1E8E5A',
+  APPROVED:              '#1E8E5A',
+  ACTIVE:                '#1E8E5A',
+  ON_TRACK:              '#1E8E5A',
+  COMPLETED:             '#1E8E5A',
+  
+  PENDING:               '#B98900',
+  DELAYED:               '#B98900',
+  IN_PROGRESS:           '#B98900',
+  ANALYZING:             '#B98900',
+  REPLANNING:            '#B98900',
+  
+  CRITICAL:              '#C4302B',
+  REJECTED:              '#C4302B',
+  SHUTDOWN_RISK:         '#C4302B',
+  EMERGENCY_PROCUREMENT: '#C4302B',
+
+  OPEN:                  '#3A4149',
+  PROPOSED:              '#3A4149',
+  CLOSED:                '#8A919B',
+  INACTIVE:              '#8A919B',
+  MONITORING:            '#3A4149',
 };
 
 export default function StatusBadge({ status }) {
-  const c = statusColors[status] || { bg: '#f5f5f5', text: '#616161' };
+  const textColor = statusTextColor[status] || '#3A4149';
   return (
-    <span style={{
-      display: 'inline-block',
-      padding: '3px 10px',
-      borderRadius: 12,
-      fontSize: 12,
-      fontWeight: 600,
-      background: c.bg,
-      color: c.text,
-    }}>
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 12,
+        fontWeight: 600,
+        color: textColor,
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      <span style={{ color: '#8A919B', fontSize: 10 }}>●</span>
       {status?.replace(/_/g, ' ')}
     </span>
   );

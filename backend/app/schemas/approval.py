@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApprovalResponse(BaseModel):
@@ -23,5 +23,10 @@ class ApprovalResponse(BaseModel):
 
 
 class ApprovalDecision(BaseModel):
-    decision: str
-    reason: str = ""
+    decision: str = Field(pattern="^(approve|reject)$")
+    reason: str = Field(default="", max_length=512)
+
+
+class ExecutionCommand(BaseModel):
+    plan_id: str = Field(min_length=1, max_length=32)
+    approval_id: str = Field(min_length=1, max_length=32)

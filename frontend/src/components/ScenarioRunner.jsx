@@ -81,10 +81,10 @@ export default function ScenarioRunner({ onScenarioComplete }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-            🧪 Interactive UI Scenario Testing Studio
+            ⚡ Interactive Operational Scenario Testing Panel
           </h3>
           <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
-            Test each architectural layer and judging criteria in 1-click directly from the browser
+            Test each operational disruption scenario and rule engine directly from the Control Center
           </p>
         </div>
       </div>

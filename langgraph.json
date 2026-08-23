@@ -1,0 +1,8 @@
+{
+  "dependencies": ["./backend"],
+  "graphs": {
+    "disruption_control": "./backend/app/graph.py:graph"
+  },
+  "python_path": ["./backend"],
+  "env": ".env"
+}

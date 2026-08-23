@@ -25,7 +25,7 @@ class Settings:
     postgres_db: str = os.getenv("POSTGRES_DB", "supply_chain")
     llm_provider: str = os.getenv("LLM_PROVIDER", "mock")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_model: str = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
     approval_threshold_amount: float = float(os.getenv("APPROVAL_THRESHOLD_AMOUNT", "75000"))
     cors_origins: list = [
         o.strip()

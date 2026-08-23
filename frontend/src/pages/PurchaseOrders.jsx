@@ -12,6 +12,7 @@ export default function PurchaseOrders() {
   const loadOrders = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await api.getPurchaseOrders();
       setOrders(data || []);
     } catch (err) {
@@ -40,28 +41,37 @@ export default function PurchaseOrders() {
     }
   };
 
+  const getPoStatusColor = (status) => {
+    if (status === 'delivered') return '#1E8E5A';
+    if (status === 'delayed' || status === 'cancelled') return '#C4302B';
+    if (status === 'in_transit' || status === 'pending') return '#B98900';
+    return '#3A4149';
+  };
+
   return (
     <Layout>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#1e293b' }}>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#12161C', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Purchase Orders & Fulfillment
         </h1>
-        <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 14 }}>
-          Track procurement orders, optimistic concurrency versioning & approval threshold violations
+        <p style={{ margin: '2px 0 0', color: '#8A919B', fontSize: 12 }}>
+          Fulfillment tracking, concurrency versions & threshold compliance
         </p>
       </div>
 
       {error && (
-        <div style={{ padding: 14, background: '#fee2e2', color: '#991b1b', borderRadius: 8, marginBottom: 20 }}>
-          {error}
+        <div style={{ padding: 12, background: '#FFFFFF', color: '#C4302B', borderRadius: 6, marginBottom: 16, border: '1px solid #D5D8DC', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+          [SYSTEM FAULT] {error}
         </div>
       )}
 
-      <Card style={{ padding: 20 }}>
+      <Card style={{ padding: 18 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60 }}><Spinner size="lg" /></div>
+          <div style={{ textAlign: 'center', padding: 50, color: '#8A919B', fontFamily: 'var(--font-mono)' }}><Spinner size="lg" /></div>
         ) : orders.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>No purchase orders found.</div>
+          <div style={{ textAlign: 'center', padding: 30, color: '#8A919B', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+            NO PURCHASE ORDERS FOUND
+          </div>
         ) : (
           <Table>
             <thead>
@@ -71,7 +81,7 @@ export default function PurchaseOrders() {
                 <Th>Supplier</Th>
                 <Th>Quantity</Th>
                 <Th>Total Value</Th>
-                <Th>Approval Threshold</Th>
+                <Th>Threshold</Th>
                 <Th>Expected Delivery</Th>
                 <Th>Status</Th>
                 <Th>Version</Th>
@@ -84,56 +94,45 @@ export default function PurchaseOrders() {
                 const isDelayed = po.status === 'delayed';
                 return (
                   <tr key={po.po_id}>
-                    <Td><code style={{ fontWeight: 700 }}>{po.po_id}</code></Td>
+                    <Td><code style={{ fontWeight: 700, color: '#003DA5' }}>{po.po_id}</code></Td>
                     <Td><code>{po.component_id}</code></Td>
                     <Td>{po.supplier_id}</Td>
-                    <Td>{po.quantity.toLocaleString()} units</Td>
-                    <Td style={{ fontWeight: 600, color: exceedsThreshold ? '#ef4444' : '#0f172a' }}>
+                    <Td style={{ fontFamily: 'var(--font-mono)' }}>{po.quantity.toLocaleString()}u</Td>
+                    <Td style={{ fontWeight: 600, color: exceedsThreshold ? '#B98900' : '#12161C', fontFamily: 'var(--font-mono)' }}>
                       INR {Number(po.total_value).toLocaleString()}
                     </Td>
-                    <Td style={{ color: '#64748b' }}>
+                    <Td style={{ color: '#8A919B', fontFamily: 'var(--font-mono)' }}>
                       INR {Number(po.approval_required_above).toLocaleString()}
                     </Td>
-                    <Td style={{ fontSize: 13, color: isDelayed ? '#ef4444' : '#64748b' }}>
+                    <Td style={{ fontSize: 12, color: isDelayed ? '#C4302B' : '#8A919B', fontFamily: 'var(--font-mono)' }}>
                       {new Date(po.expected_delivery).toLocaleDateString()}
                     </Td>
                     <Td>
                       <span
                         style={{
-                          padding: '3px 8px',
-                          borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 700,
+                          fontFamily: 'var(--font-mono)',
                           textTransform: 'uppercase',
-                          background:
-                            po.status === 'delivered'
-                              ? '#d1fae5'
-                              : po.status === 'delayed'
-                              ? '#fee2e2'
-                              : '#fef3c7',
-                          color:
-                            po.status === 'delivered'
-                              ? '#065f46'
-                              : po.status === 'delayed'
-                              ? '#991b1b'
-                              : '#b45309',
+                          color: getPoStatusColor(po.status),
                         }}
                       >
-                        {po.status}
+                        ● {po.status}
                       </span>
                     </Td>
-                    <Td style={{ fontSize: 12, color: '#64748b' }}>v{po.version}</Td>
+                    <Td style={{ fontSize: 11, color: '#8A919B', fontFamily: 'var(--font-mono)' }}>v{po.version}</Td>
                     <Td>
                       <select
                         value={po.status}
                         disabled={patchingId === po.po_id}
                         onChange={(e) => handleStatusChange(po, e.target.value)}
                         style={{
-                          padding: '4px 8px',
+                          padding: '3px 6px',
                           borderRadius: 4,
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          background: '#fff',
+                          border: '1px solid #D5D8DC',
+                          fontSize: 11,
+                          background: '#FFFFFF',
+                          fontFamily: 'var(--font-mono)',
                         }}
                       >
                         <option value="in_transit">in_transit</option>

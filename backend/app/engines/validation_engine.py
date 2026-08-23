@@ -35,8 +35,29 @@ class PlanValidationEngine:
         deadline_days = plan_dict.get("deadline_days")
         total_cost = Decimal(str(plan_dict.get("total_cost", 0)))
 
+        allocations = plan_dict.get("allocations") or (plan_dict.get("plan_details") or {}).get("allocations")
+        if allocations:
+            total_alloc_cost = Decimal("0")
+            for alloc in allocations:
+                s_id = alloc.get("supplier_id")
+                qty = Decimal(str(alloc.get("quantity", 0)))
+                price = Decimal(str(alloc.get("unit_price", 0)))
+                lead_t = alloc.get("lead_time_days") or deadline_days
+                total_alloc_cost += qty * price
+                await self._check_supplier_active(session, s_id, report)
+                await self._check_available_stock(session, material_id, s_id, qty, report)
+                await self._check_delivery_deadline(lead_t, session, s_id, material_id, report)
+                await self._check_certification(session, s_id, material_id, report)
+                await self._check_aql(session, s_id, material_id, report)
+            if total_cost > Decimal("0") and abs(total_cost - total_alloc_cost) > Decimal("1.0"):
+                report.violations.append({"check": "budget", "message": f"Total cost {total_cost} != sum of allocations {total_alloc_cost}"})
+            report.valid = len(report.violations) == 0
+            return report
+
         await self._check_supplier_active(session, supplier_id, report)
-        await self._check_available_stock(session, material_id, required_quantity, report)
+        await self._check_available_stock(
+            session, material_id, supplier_id, required_quantity, report
+        )
         await self._check_delivery_deadline(deadline_days, session, supplier_id, material_id, report)
         await self._check_certification(session, supplier_id, material_id, report)
         await self._check_aql(session, supplier_id, material_id, report)
@@ -68,29 +89,53 @@ class PlanValidationEngine:
         self,
         session: AsyncSession,
         material_id: str,
+        supplier_id: str | None,
         required_quantity: Decimal,
         report: ValidationReport,
     ):
         if not material_id:
             report.violations.append({"check": "available_stock", "message": "No material specified"})
             return
-        stmt = (
-            select(InventorySnapshot)
-            .where(InventorySnapshot.material_id == material_id)
-            .order_by(InventorySnapshot.snapshot_date.desc())
-            .limit(1)
-        )
+        if supplier_id:
+            stmt = select(SupplierMaterial).where(
+            and_(SupplierMaterial.supplier_id == supplier_id,
+                     SupplierMaterial.material_id == material_id)
+            )
+        else:
+            stmt = (
+                select(InventorySnapshot)
+                .where(InventorySnapshot.material_id == material_id)
+                .order_by(InventorySnapshot.snapshot_date.desc())
+                .limit(1)
+            )
         result = await session.execute(stmt)
-        snapshot = result.scalar_one_or_none()
-        if not snapshot:
+        stock_record = result.scalar_one_or_none()
+        if not stock_record:
             report.warnings.append({"check": "available_stock", "message": "No inventory snapshot found"})
             return
-        available = snapshot.usable_quantity or Decimal("0")
+        available = (
+            stock_record.available_to_promise or stock_record.available_quantity
+            if supplier_id else stock_record.usable_quantity
+        ) or Decimal("0")
         if available < required_quantity:
             report.violations.append({
                 "check": "available_stock",
                 "message": f"Available {available} < required {required_quantity}",
             })
+        if supplier_id:
+            inventory_result = await session.execute(
+                select(InventorySnapshot)
+                .where(InventorySnapshot.material_id == material_id)
+                .order_by(InventorySnapshot.snapshot_date.desc())
+                .limit(1)
+            )
+            snapshot = inventory_result.scalar_one_or_none()
+            usable = (snapshot.usable_quantity or Decimal("0")) if snapshot else Decimal("0")
+            if snapshot and usable < required_quantity:
+                report.violations.append({
+                    "check": "available_stock",
+                    "message": f"Usable inventory {usable} < required {required_quantity}",
+                })
 
     async def _check_delivery_deadline(
         self,

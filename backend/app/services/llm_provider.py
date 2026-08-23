@@ -1,12 +1,100 @@
 from __future__ import annotations
 
+import json
 import uuid
 from decimal import Decimal
+
+import httpx
+
+from app.config import settings
 
 
 async def get_plan_suggestions(
     incident_id: str,
     material_id: str | None,
+    risk_report: dict,
+    eligible_suppliers: list[dict],
+) -> list[dict]:
+    if settings.llm_provider.lower() == "groq" and settings.llm_api_key:
+        try:
+            return await _get_groq_suggestions(
+                incident_id, material_id, risk_report, eligible_suppliers
+            )
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            pass
+
+    return _get_deterministic_suggestions(risk_report, eligible_suppliers)
+
+
+async def _get_groq_suggestions(
+    incident_id: str,
+    material_id: str | None,
+    risk_report: dict,
+    eligible_suppliers: list[dict],
+) -> list[dict]:
+    prompt = {
+        "incident_id": incident_id,
+        "material_id": material_id,
+        "risk_report": risk_report,
+        "eligible_suppliers": eligible_suppliers,
+    }
+    response_schema = (
+        "Return a JSON object with a 'suggestions' array. Each suggestion must contain "
+        "plan_name, plan_type, plan_details, estimated_cost, estimated_delivery_days, "
+        "production_impact_hours, supplier_risk_score, quality_score, and robustness_score. "
+        "Use only the supplied risk report and eligible suppliers. Do not invent supplier IDs, "
+        "quantities, prices, or lead times."
+    )
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a supply-chain recovery recommendation assistant. "
+                            "Deterministic services have established operational truth. "
+                            + response_schema
+                        ),
+                    },
+                    {"role": "user", "content": json.dumps(prompt)},
+                ],
+            },
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        payload = json.loads(content)
+
+    suggestions = payload["suggestions"]
+    if not isinstance(suggestions, list) or not suggestions:
+        raise ValueError("Groq returned no recovery suggestions")
+
+    normalized = []
+    for suggestion in suggestions:
+        if not isinstance(suggestion, dict):
+            raise ValueError("Groq returned an invalid suggestion")
+        suggestion["plan_id"] = str(uuid.uuid4().hex[:16])
+        suggestion["plan_details"] = suggestion.get("plan_details", {})
+        suggestion["overall_score"] = round(
+            float(suggestion.get("quality_score", 0)) * 0.4
+            + (100 - float(suggestion.get("supplier_risk_score", 0))) * 0.3
+            + float(suggestion.get("robustness_score", 0)) * 0.3,
+            2,
+        )
+        normalized.append(suggestion)
+    return normalized
+
+
+def _get_deterministic_suggestions(
     risk_report: dict,
     eligible_suppliers: list[dict],
 ) -> list[dict]:
@@ -30,12 +118,13 @@ async def get_plan_suggestions(
             "plan_details": {
                 "supplier_id": best.get("supplier_id"),
                 "supplier_name": best.get("supplier_name"),
-                "quantity": str(best.get("available_quantity", 0)),
+                "quantity": str(min(float(best.get("available_quantity", 0)), 100.0)),
                 "unit_price": str(best.get("unit_price", 0)),
                 "lead_time_days": best.get("lead_time_days", 0),
                 "rationale": f"Fastest qualified supplier with {best.get('lead_time_days', '?')}d lead time",
             },
-            "estimated_cost": float(best.get("unit_price", 0)) * 100,
+            "estimated_cost": float(best.get("unit_price", 0))
+            * min(float(best.get("available_quantity", 0)), 100.0),
             "estimated_delivery_days": float(best.get("lead_time_days", 30)),
             "production_impact_hours": hours_to_stop,
             "supplier_risk_score": float(100 - float(best.get("reliability_score", 50))),

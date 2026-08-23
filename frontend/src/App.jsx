@@ -8,21 +8,25 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import Incidents from './pages/Incidents';
 import IncidentDetails from './pages/IncidentDetails';
+import ProductionSchedule from './pages/ProductionSchedule';
+import Inbox from './pages/Inbox';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/escalations" element={<Approvals />} />
-      <Route path="/approvals" element={<Approvals />} />
+      <Route path="/inbox" element={<Inbox />} />
+      <Route path="/incidents" element={<Incidents />} />
+      <Route path="/incidents/:id" element={<IncidentDetails />} />
       <Route path="/audit-log" element={<AuditTrail />} />
       <Route path="/audit" element={<AuditTrail />} />
       <Route path="/inventory" element={<Inventory />} />
       <Route path="/purchase-orders" element={<PurchaseOrders />} />
       <Route path="/suppliers" element={<Suppliers />} />
-      <Route path="/incidents" element={<Incidents />} />
-      <Route path="/incidents/:id" element={<IncidentDetails />} />
+      <Route path="/production-schedule" element={<ProductionSchedule />} />
+      <Route path="/escalations" element={<Approvals />} />
+      <Route path="/approvals" element={<Approvals />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
