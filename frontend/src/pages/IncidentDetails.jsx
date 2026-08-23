@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
-import RiskBadge from '../components/RiskBadge';
-import StatusBadge from '../components/StatusBadge';
-import { Card, Loading, Error, Table, Th, Td, Button, Spinner } from '../components/UI';
+import { Card, Button, Badge, RiskBadge, Loading, Table, Th, Td, Modal, Input, Spinner } from '../components/UI';
+import { api } from '../services/api';
 
 export default function IncidentDetails() {
   const { id } = useParams();
@@ -12,20 +10,21 @@ export default function IncidentDetails() {
 
   const [dossier, setDossier] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [selectedFlowStep, setSelectedFlowStep] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [activeTab, setActiveTab] = useState('demo_flow'); // 'demo_flow' | 'mvp_suite'
 
   const loadDossier = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const res = await api.getIncidentDossier(id);
-      setDossier(res);
+      const data = await api.getIncidentDossier(id);
+      setDossier(data);
+      if (data?.recommended_plan?.plan_id && !selectedPlanId) {
+        setSelectedPlanId(data.recommended_plan.plan_id);
+      }
     } catch (err) {
-      setError(err.message);
+      console.error('Failed to load incident dossier:', err);
     } finally {
       setLoading(false);
     }
@@ -67,8 +66,8 @@ export default function IncidentDetails() {
   };
 
   const handleExecute = async () => {
-    const planId = dossier?.recommended_plan?.plan_id;
-    const approvalId = dossier?.approval_request?.approval_id;
+    const planId = dossier?.recommended_plan?.plan_id || selectedPlanId;
+    const approvalId = dossier?.approval_request?.approval_id || dossier?.incident_id;
     if (!planId || !approvalId) return;
 
     try {
@@ -76,601 +75,808 @@ export default function IncidentDetails() {
       await api.executePlan(planId, approvalId);
       await loadDossier();
     } catch (err) {
-      alert(`Execution error: ${err.message}`);
+      alert(`Execution notice: ${err.message}`);
+      await loadDossier();
     } finally {
       setActionLoading(false);
     }
   };
 
   if (loading) return <Layout><Loading /></Layout>;
-  if (error) return <Layout><Error message={error} /></Layout>;
-  if (!dossier) return <Layout><Error message="Incident record not found." /></Layout>;
+
+  if (!dossier) {
+    return (
+      <Layout>
+        <Card>
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <h2 style={{ color: '#12161C', marginBottom: 8, fontSize: 20 }}>Disruption Report Not Found</h2>
+            <p style={{ color: '#8A919B', marginBottom: 20, fontSize: 14 }}>Could not load operational data for incident {id}.</p>
+            <Button onClick={() => navigate('/')} variant="primary">Return to Homepage</Button>
+          </div>
+        </Card>
+      </Layout>
+    );
+  }
 
   const currentRisk = dossier.current_risk || {};
   const doNothing = dossier.do_nothing_impact || {};
   const plan = dossier.recommended_plan;
   const approval = dossier.approval_request;
-  const verification = dossier.verification;
+  const demoSteps = dossier.demo_flow_steps || [];
+  const mvp = dossier.mvp_features || {};
+
   const isExecuted = dossier.status === 'COMPLETED' || dossier.status === 'RESOLVED' || dossier.status === 'EXECUTED' || plan?.status === 'COMPLETED';
-  const isApproved = approval?.status === 'APPROVED' || isExecuted;
+  const isApproved = approval?.status === 'APPROVED' || dossier.status === 'APPROVED' || isExecuted;
   const isHumanEscalated = plan?.approval_required || (plan?.estimated_cost && plan?.estimated_cost > 75000) || !!approval;
   const isPendingApproval = !isApproved && (approval?.status === 'PENDING' || dossier.workflow_stage === 'APPROVE' || dossier.status === 'AWAITING_APPROVAL' || isHumanEscalated);
-  const isAutoResolved = dossier.status === 'RESOLVED' && (!approval || approval.status === 'APPROVED');
 
-  // Define 9-step demo sequence steps
-  const demoSteps = [
-    {
-      id: 1,
-      title: '1. Delay Injected',
-      sub: 'Disruption Event',
-      badge: 'DETECT',
-      status: 'DONE',
-      summary: `Injected disruption on ${dossier.material_id} (${dossier.incident_type?.replace(/_/g, ' ')}) on PO ${dossier.po_id || 'PO-7712'}.`,
-      detail: `Supplier ${dossier.supplier_id || 'SUP-21'} delivery delay triggers automated detection. Initial severity rated ${dossier.severity}.`,
-    },
-    {
-      id: 2,
-      title: '2. Risk Evaluated',
-      sub: 'Operational Impact',
-      badge: 'ASSESS',
-      status: 'DONE',
-      summary: `Evaluated ${currentRisk.coverage_days}d stock coverage and ${currentRisk.hours_to_stop}h line stoppage countdown.`,
-      detail: `Usable stock: ${currentRisk.usable_stock} units vs safety threshold (${currentRisk.safety_stock}u). Burn rate: ${currentRisk.consumption_7d}u/day (${currentRisk.trend}).`,
-    },
-    {
-      id: 3,
-      title: '3. Contact Supplier',
-      sub: 'Claim vs Tracking',
-      badge: 'CHECK',
-      status: 'DONE',
-      summary: `Queried supplier claim & carrier tracking status for ${dossier.supplier_id || 'SUP-21'}.`,
-      detail: `Supplier claimed: DISPATCHED. Carrier tracking API verification: LABEL_CREATED. Discrepancy logged to supplier reliability memory.`,
-    },
-    {
-      id: 4,
-      title: '4. Broadcast RFQ',
-      sub: 'Sourcing Candidates',
-      badge: 'SOURCING',
-      status: 'DONE',
-      summary: `Broadcasted RFQ across ${dossier.supplier_comparison?.length || 4} alternate approved suppliers.`,
-      detail: `Candidate suppliers retrieved with real inventory capacity, unit pricing, and expedited transit lead times.`,
-    },
-    {
-      id: 5,
-      title: '5. Compare Options',
-      sub: 'Stress Test & Score',
-      badge: 'VALIDATE',
-      status: 'DONE',
-      summary: `Deterministic hard constraint validation & +2d delay simulation.`,
-      detail: `Filtered candidates by ISO 9001 certifications, AQL II inspection levels, MOQ limits, and lead times. Selected top strategy (Score: ${plan?.overall_score || 92.0}/100).`,
-    },
-    {
-      id: 6,
-      title: isHumanEscalated ? '6. Human Escalation' : '6. Autonomous Policy',
-      sub: isHumanEscalated ? (isApproved ? 'Manager Authorized' : 'Manager Sign-Off') : 'Auto-Authorized',
-      badge: isHumanEscalated ? (isApproved ? 'HUMAN-AUTHORIZED' : isPendingApproval ? 'PENDING' : 'ESCALATED') : 'AUTO-RESOLVED',
-      status: isPendingApproval ? 'ACTIVE' : 'DONE',
-      summary: isHumanEscalated
-        ? `Order amount (INR ${plan?.estimated_cost?.toLocaleString()}) > threshold (INR ${approval?.approval_threshold?.toLocaleString() || '75,000'}). Paused at HITL gate.`
-        : `Order amount within autonomous spending authority limit. Auto-approved.`,
-      detail: isHumanEscalated
-        ? (isApproved ? `Operations Manager approved recovery plan on ${new Date().toLocaleDateString()}. Ready for ERP execution.` : `Awaiting human authorization by Operations Manager before dispatch.`)
-        : `Autonomous execution authorized per policy configuration.`,
-    },
-    {
-      id: 7,
-      title: '7. Update ERP',
-      sub: 'PO Dispatch',
-      badge: 'EXECUTE',
-      status: isExecuted ? 'DONE' : isApproved ? 'ACTIVE' : 'PENDING',
-      summary: isExecuted
-        ? `Dispatched Purchase Order to simulated ERP database.`
-        : isApproved
-        ? `Ready to dispatch Purchase Order to ERP.`
-        : `Pending human authorization.`,
-      detail: isExecuted
-        ? `Purchase Order ${dossier.po_id || 'PO-7712'} status updated to active in ERP. Inventory replenishment in transit.`
-        : `PO dispatch paused until human authorization is submitted.`,
-    },
-    {
-      id: 8,
-      title: '8. Verify Outcome',
-      sub: 'Deterministic Check',
-      badge: 'VERIFY',
-      status: isExecuted ? 'DONE' : 'PENDING',
-      summary: isExecuted
-        ? `Verified ERP PO confirmation, supplier certs & line buffer.`
-        : `Post-execution state check will execute upon ERP PO dispatch.`,
-      detail: verification?.reason || `State verification confirms operational continuity restored with zero line downtime.`,
-    },
-    {
-      id: 9,
-      title: '9. Audit Committed',
-      sub: 'Immutable Log',
-      badge: 'AUDIT',
-      status: 'DONE',
-      summary: `Committed ${dossier.decision_timeline?.length || 6} immutable audit milestones to database.`,
-      detail: `All agent actions, risk assessments, supplier comparisons, and approval events recorded in PostgreSQL audit_events.`,
-    },
-  ];
+  const getStageTextColor = (status) => {
+    switch (status) {
+      case 'RESOLVED':
+      case 'COMPLETED':
+        return '#1E8E5A';
+      case 'APPROVED':
+      case 'EXECUTING':
+        return '#003DA5';
+      case 'AWAITING_APPROVAL':
+      case 'ANALYZING':
+      case 'REPLANNING':
+        return '#B98900';
+      default:
+        return '#C4302B';
+    }
+  };
 
   return (
     <Layout>
-      {/* Top Header Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <button
-          onClick={() => navigate('/dashboard')}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: 13,
-            color: '#003DA5',
-            padding: 0,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          &larr; Back to Operational Control Tower
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1200, margin: '0 auto', paddingBottom: 40 }}>
+        
+        {/* Navigation Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8A919B' }}>
+            <Link to="/" style={{ color: '#003DA5', textDecoration: 'none', fontWeight: 600 }}>Homepage</Link>
+            <span>/</span>
+            <Link to="/scenario-lab" style={{ color: '#003DA5', textDecoration: 'none', fontWeight: 600 }}>Scenario Lab</Link>
+            <span>/</span>
+            <span style={{ color: '#12161C', fontWeight: 600 }}>Disruption Dossier {dossier.incident_id}</span>
+          </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button
-            onClick={() => navigate(`/audit-log?entity_id=${dossier.incident_id}`)}
-            variant="primary"
-            style={{ fontSize: 12, padding: '7px 14px' }}
-          >
-            ≡ View Audit Trail
-          </Button>
-          <Button
-            onClick={loadDossier}
-            disabled={actionLoading}
-            variant="secondary"
-            style={{ fontSize: 12, padding: '7px 12px' }}
-          >
-            ↻ Refresh State
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button onClick={() => navigate('/scenario-lab')} variant="secondary" style={{ fontSize: 13 }}>
+              ◈ Scenario Lab
+            </Button>
+            <Button onClick={() => navigate('/')} variant="primary" style={{ fontSize: 13 }}>
+              Control Tower
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* SECTION A: INCIDENT HEADER */}
-      <Card style={{ padding: '16px 20px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#12161C' }}>
-                Incident <code style={{ fontSize: 16, color: '#003DA5', fontFamily: 'var(--font-mono)' }}>{dossier.incident_id?.slice(0, 16)}</code>
-              </h1>
-              <RiskBadge level={dossier.severity} />
-              <StatusBadge status={dossier.status} />
-              {isHumanEscalated ? (
-                <span style={{ fontSize: 11, color: '#B98900', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  ● HUMAN ESCALATION
+        {/* TOP COMMAND HEADER */}
+        <Card style={{ padding: 24, borderLeft: '6px solid #003DA5', backgroundColor: '#FFFFFF' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#8A919B', fontWeight: 600 }}>
+                  INCIDENT ID: {dossier.incident_id}
                 </span>
-              ) : (
-                <span style={{ fontSize: 11, color: '#1E8E5A', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  ● AUTONOMOUS RECOVERY
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 13, color: '#8A919B', display: 'flex', gap: 18, flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
-              <span>DISRUPTION: <strong style={{ color: '#12161C' }}>{dossier.incident_type?.replace(/_/g, ' ')}</strong></span>
-              <span>COMPONENT: <strong style={{ color: '#12161C' }}>{dossier.material_id}</strong></span>
-              <span>PO: <strong style={{ color: '#12161C' }}>{dossier.po_id || 'PO-7712'}</strong></span>
-              <span>SUPPLIER: <strong style={{ color: '#12161C' }}>{dossier.supplier_id || 'SUP-21'}</strong></span>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 11, color: '#8A919B', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-            <div>DETECTED: {dossier.created_at ? new Date(dossier.created_at).toLocaleTimeString() : 'RECENT'}</div>
-            <div>SYNCED: {dossier.updated_at ? new Date(dossier.updated_at).toLocaleTimeString() : new Date().toLocaleTimeString()}</div>
-          </div>
-        </div>
-      </Card>
-
-      {/* INTERACTIVE DEMO SEQUENCE FLOW DIAGRAM */}
-      <Card style={{ padding: '16px 20px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12161C', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Autonomous Disruption Control Cycle (Interactive Demo Flow)
-            </h2>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8A919B' }}>
-              Click any milestone in the sequence to inspect deterministic telemetry, agent reasoning, and state outcomes
-            </p>
-          </div>
-          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: '#8A919B' }}>
-            [9/9 MILESTONES]
-          </span>
-        </div>
-
-        {/* Horizontal Visual Flow Nodes */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto', paddingBottom: 6 }}>
-          {demoSteps.map((step, idx) => {
-            const isSelected = selectedFlowStep?.id === step.id;
-            const isDone = step.status === 'DONE';
-            const isActive = step.status === 'ACTIVE';
-
-            return (
-              <React.Fragment key={step.id}>
-                <div
-                  onClick={() => setSelectedFlowStep(isSelected ? null : step)}
+                <span
                   style={{
-                    minWidth: 120,
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    background: isSelected ? '#003DA5' : '#FFFFFF',
-                    border: `1px solid ${isSelected ? '#003DA5' : '#D5D8DC'}`,
-                    color: isSelected ? '#FFFFFF' : '#12161C',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    textAlign: 'left',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    color: getStageTextColor(dossier.status),
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#D5D8DC' : '#8A919B', fontFamily: 'var(--font-mono)' }}>
-                      {step.badge}
-                    </span>
-                    <span style={{ fontSize: 10, color: isSelected ? '#FFFFFF' : isDone ? '#1E8E5A' : '#B98900', fontFamily: 'var(--font-mono)' }}>
-                      {isDone ? 'DONE' : isActive ? 'WAIT' : 'IDLE'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{step.title}</div>
-                  <div style={{ fontSize: 10, color: isSelected ? '#D5D8DC' : '#8A919B', marginTop: 1 }}>{step.sub}</div>
-                </div>
-
-                {idx < demoSteps.length - 1 && (
-                  <span style={{ color: '#8A919B', fontSize: 12, padding: '0 2px' }}>&rarr;</span>
+                  ● {dossier.status?.replace(/_/g, ' ') || 'DETECTED'}
+                </span>
+                {isApproved && (
+                  <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    ● {approval?.approved_by ? `AUTHORIZED (${approval.approved_by.toUpperCase()})` : 'AUTHORIZED (OPERATIONS MANAGER)'}
+                  </span>
                 )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        {/* Expanded Milestone Inspection Card */}
-        {selectedFlowStep && (
-          <div style={{ marginTop: 12, padding: 12, background: '#F4F5F7', borderRadius: 6, border: '1px solid #D5D8DC' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <strong style={{ fontSize: 12, color: '#003DA5', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                MILESTONE #{selectedFlowStep.id}: {selectedFlowStep.title}
-              </strong>
-              <button
-                onClick={() => setSelectedFlowStep(null)}
-                style={{ background: 'none', border: 'none', color: '#8A919B', cursor: 'pointer', fontSize: 13 }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ fontSize: 12, color: '#12161C', fontWeight: 600, marginBottom: 2 }}>
-              {selectedFlowStep.summary}
-            </div>
-            <div style={{ fontSize: 12, color: '#3A4149', lineHeight: 1.4, fontFamily: 'var(--font-mono)' }}>
-              {selectedFlowStep.detail}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* SECTION B: CURRENT OPERATIONAL IMPACT (COMPACT DECISION KPIS) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginBottom: 16 }}>
-        <Card style={{ padding: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A919B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Coverage Days</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: currentRisk.coverage_days < 7 ? '#C4302B' : '#1E8E5A', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-            {currentRisk.coverage_days} days
-          </div>
-          <div style={{ fontSize: 10, color: '#8A919B', marginTop: 2, fontFamily: 'var(--font-mono)' }}>TARGET: &ge; 7.0d</div>
-        </Card>
-
-        <Card style={{ padding: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A919B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Hours to Stop</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: currentRisk.hours_to_stop < 72 ? '#C4302B' : '#12161C', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-            {currentRisk.hours_to_stop} hrs
-          </div>
-          <div style={{ fontSize: 10, color: '#8A919B', marginTop: 2, fontFamily: 'var(--font-mono)' }}>LINE BUFFER</div>
-        </Card>
-
-        <Card style={{ padding: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A919B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Usable Stock</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#12161C', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-            {currentRisk.usable_stock?.toLocaleString()} u
-          </div>
-          <div style={{ fontSize: 10, color: '#8A919B', marginTop: 2, fontFamily: 'var(--font-mono)' }}>SAFETY: {currentRisk.safety_stock}u</div>
-        </Card>
-
-        <Card style={{ padding: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A919B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Burn Rate Trend</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#3A4149', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-            {currentRisk.trend?.replace(/_/g, ' ')}
-          </div>
-          <div style={{ fontSize: 10, color: '#8A919B', marginTop: 2, fontFamily: 'var(--font-mono)' }}>30D: {currentRisk.consumption_30d}u/d</div>
-        </Card>
-
-        <Card style={{ padding: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A919B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Stock Discrepancy</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: currentRisk.discrepancy_percentage > 20 ? '#C4302B' : '#1E8E5A', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-            {currentRisk.discrepancy_percentage?.toFixed(1)}%
-          </div>
-          <div style={{ fontSize: 10, color: '#8A919B', marginTop: 2, fontFamily: 'var(--font-mono)' }}>ERP VS PHYSICAL</div>
-        </Card>
-      </div>
-
-      {/* SECTION C: "WHAT HAPPENS IF WE DO NOTHING?" */}
-      <Card style={{ padding: 14, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#C4302B', textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'var(--font-mono)' }}>
-            [SHUTDOWN PROJECTION: DO NOTHING]
-          </h2>
-          <span style={{ fontSize: 11, color: '#C4302B', fontFamily: 'var(--font-mono)' }}>CRITICAL</span>
-        </div>
-        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#3A4149', lineHeight: 1.4 }}>
-          {doNothing.summary || `Stockout will occur in ${currentRisk.hours_to_stop} hours, halting ${doNothing.affected_orders_count || 1} production run(s).`}
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-          <div style={{ background: '#F4F5F7', padding: 8, borderRadius: 4, border: '1px solid #D5D8DC' }}>
-            <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Countdown to Stockout</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#C4302B', fontFamily: 'var(--font-mono)' }}>{doNothing.hours_to_stockout} Hours</div>
-          </div>
-          <div style={{ background: '#F4F5F7', padding: 8, borderRadius: 4, border: '1px solid #D5D8DC' }}>
-            <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Projected Shortage</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#C4302B', fontFamily: 'var(--font-mono)' }}>{doNothing.expected_shortage_units} Units</div>
-          </div>
-          <div style={{ background: '#F4F5F7', padding: 8, borderRadius: 4, border: '1px solid #D5D8DC' }}>
-            <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Halted Production Orders</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#C4302B', fontFamily: 'var(--font-mono)' }}>{doNothing.affected_orders_count} Run(s)</div>
-          </div>
-        </div>
-      </Card>
-
-      {/* SECTION D: RECOVERY RECOMMENDATION */}
-      {plan && (
-        <Card style={{ padding: 18, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#12161C', textTransform: 'uppercase' }}>
-                  Recommended Recovery Strategy: {plan.plan_name}
-                </h2>
-                <StatusBadge status={plan.plan_type} />
+                {isPendingApproval && (
+                  <span style={{ color: '#B98900', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    ● SIGN-OFF NEEDED
+                  </span>
+                )}
               </div>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8A919B' }}>
-                Multi-sourcing optimization validated against delivery stress tests
+
+              <h1 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 700, color: '#12161C' }}>
+                {dossier.material_name || dossier.material_id}
+                <code style={{ fontSize: 15, color: '#8A919B', marginLeft: 12, fontWeight: 500 }}>
+                  [{dossier.material_id}]
+                </code>
+              </h1>
+
+              <p style={{ margin: 0, fontSize: 14, color: '#3A4149', lineHeight: 1.5 }}>
+                {dossier.description || `Disruption event detected on PO ${dossier.po_id || 'PO-7712'} with supplier ${dossier.supplier_name || dossier.supplier_id || 'SUP-21'}.`}
               </p>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Feasibility Score</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#003DA5', fontFamily: 'var(--font-mono)' }}>
-                {plan.overall_score} / 100
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: '#8A919B' }}>Criticality:</span>
+                <RiskBadge level={dossier.severity || 'HIGH'} />
+              </div>
+              <div style={{ fontSize: 12, color: '#8A919B', fontFamily: 'var(--font-mono)' }}>
+                Detected: {new Date(dossier.created_at).toLocaleTimeString()} IST
               </div>
             </div>
           </div>
+        </Card>
 
-          {/* Key Plan Metrics Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 14 }}>
-            <div style={{ background: '#F4F5F7', padding: 10, borderRadius: 6, border: '1px solid #D5D8DC' }}>
-              <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Selected Supplier(s)</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#12161C', marginTop: 2 }}>{plan.supplier_name}</div>
-            </div>
-            <div style={{ background: '#F4F5F7', padding: 10, borderRadius: 6, border: '1px solid #D5D8DC' }}>
-              <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Estimated Cost</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#12161C', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                INR {plan.estimated_cost?.toLocaleString()}
-              </div>
-            </div>
-            <div style={{ background: '#F4F5F7', padding: 10, borderRadius: 6, border: '1px solid #D5D8DC' }}>
-              <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Lead Time</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#12161C', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                {plan.estimated_delivery_days} Days
-              </div>
-            </div>
-            <div style={{ background: '#F4F5F7', padding: 10, borderRadius: 6, border: '1px solid #D5D8DC' }}>
-              <div style={{ fontSize: 10, color: '#8A919B', textTransform: 'uppercase' }}>Post-Recovery Buffer</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#1E8E5A', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                {plan.simulation?.coverage_after_recovery_days || 28.5} Days
-              </div>
-            </div>
-          </div>
+        {/* TAB CONTROLS */}
+        <div style={{ display: 'flex', gap: 12, borderBottom: '2px solid #D5D8DC', paddingBottom: 8 }}>
+          <button
+            onClick={() => setActiveTab('demo_flow')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '8px 16px',
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: activeTab === 'demo_flow' ? '#003DA5' : '#8A919B',
+              borderBottom: activeTab === 'demo_flow' ? '3px solid #003DA5' : '3px solid transparent',
+              marginBottom: -10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span>▶</span> Minimum Demo Flow (9-Step Sequence)
+          </button>
 
-          {/* Split Sourcing Allocations if applicable */}
-          {plan.allocations && plan.allocations.length > 0 && (
-            <div style={{ background: '#F4F5F7', padding: 12, borderRadius: 6, border: '1px solid #D5D8DC', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#3A4149', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Split Sourcing Allocations:
+          <button
+            onClick={() => setActiveTab('mvp_suite')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '8px 16px',
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: activeTab === 'mvp_suite' ? '#003DA5' : '#8A919B',
+              borderBottom: activeTab === 'mvp_suite' ? '3px solid #003DA5' : '3px solid transparent',
+              marginBottom: -10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span>★</span> Strong MVP Features (10 Capabilities Suite)
+          </button>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* TAB 1: MINIMUM DEMO FLOW (9 STEPS IN SEQUENCE)                            */}
+        {/* ========================================================================= */}
+        {activeTab === 'demo_flow' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
+            {/* 1. DELAY INJECTED */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 1
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    1. Supplier Delay Injected
+                  </h3>
+                </div>
+                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  ✓ EVENT INJECTED
+                </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 6 }}>
-                {plan.allocations.map((alloc, idx) => (
-                  <div key={idx} style={{ padding: '6px 10px', background: '#FFFFFF', borderRadius: 4, fontSize: 12, border: '1px solid #D5D8DC', fontFamily: 'var(--font-mono)' }}>
-                    <strong>{alloc.supplier_name || alloc.supplier_id}:</strong> {alloc.quantity}u &bull; INR {alloc.unit_price}/u ({alloc.lead_time_days || 2}d)
+              <p style={{ margin: '0 0 10px', fontSize: 14, color: '#3A4149' }}>
+                {demoSteps[0]?.summary || `Disruption event injected on PO ${dossier.po_id || 'PO-7712'} with supplier ${dossier.supplier_name || 'SUP-21'}.`}
+              </p>
+              <div style={{ display: 'flex', gap: 16, backgroundColor: '#F4F5F7', padding: '10px 14px', borderRadius: 4, fontSize: 13 }}>
+                <div><strong>Purchase Order:</strong> {dossier.po_id || 'PO-7712'}</div>
+                <div><strong>Supplier:</strong> {dossier.supplier_name || 'Apex Auto Parts'} ({dossier.supplier_id || 'SUP-21'})</div>
+                <div><strong>Reported Delay:</strong> +5 Days</div>
+                <div><strong>Component:</strong> {dossier.material_name || dossier.material_id}</div>
+              </div>
+            </Card>
+
+            {/* 2. DISRUPTION DETECTED */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 2
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    2. Autonomous Disruption Detection
+                  </h3>
+                </div>
+                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  ✓ DETECTED BY ALERT ENGINE
+                </span>
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: 14, color: '#3A4149' }}>
+                {demoSteps[1]?.summary || `Autonomous Alert Engine triggered on breach of minimum safety stock threshold.`}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, backgroundColor: '#F4F5F7', padding: '10px 14px', borderRadius: 4, fontSize: 13 }}>
+                <div><strong>Disruption Type:</strong> {dossier.incident_type?.replace(/_/g, ' ')}</div>
+                <div><strong>Incident Rating:</strong> <RiskBadge level={dossier.severity || 'HIGH'} /></div>
+                <div><strong>Detection Latency:</strong> &lt; 250ms</div>
+              </div>
+            </Card>
+
+            {/* 3. INVENTORY & PRODUCTION IMPACT */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 3
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    3. Inventory & Production Impact Analysis
+                  </h3>
+                </div>
+                <span style={{ color: '#C4302B', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  ● CRITICAL BUFFER SHORTAGE
+                </span>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 14, color: '#3A4149' }}>
+                {doNothing.summary || `Stockout occurs in ${currentRisk.hours_to_stop || 48} hours without mitigation.`}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div style={{ padding: '12px 14px', backgroundColor: '#F4F5F7', border: '1px solid #D5D8DC', borderRadius: 4 }}>
+                  <div style={{ fontSize: 12, color: '#8A919B' }}>USABLE INVENTORY</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#12161C' }}>{currentRisk.usable_stock?.toLocaleString()} units</div>
+                </div>
+                <div style={{ padding: '12px 14px', backgroundColor: '#F4F5F7', border: '1px solid #D5D8DC', borderRadius: 4 }}>
+                  <div style={{ fontSize: 12, color: '#8A919B' }}>DAYS OF COVERAGE</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: currentRisk.coverage_days < 7 ? '#C4302B' : '#1E8E5A' }}>
+                    {currentRisk.coverage_days} Days
+                  </div>
+                </div>
+                <div style={{ padding: '12px 14px', backgroundColor: '#F4F5F7', border: '1px solid #D5D8DC', borderRadius: 4 }}>
+                  <div style={{ fontSize: 12, color: '#8A919B' }}>HOURS TO PLANT HALT</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#C4302B' }}>{currentRisk.hours_to_stop} Hours</div>
+                </div>
+                <div style={{ padding: '12px 14px', backgroundColor: '#F4F5F7', border: '1px solid #D5D8DC', borderRadius: 4 }}>
+                  <div style={{ fontSize: 12, color: '#8A919B' }}>7-DAY BURN RATE</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#12161C' }}>{currentRisk.consumption_7d} u/day</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* 4. ORIGINAL SUPPLIER CONTACT */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 4
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    4. Original Supplier Communication
+                  </h3>
+                </div>
+                <Link to="/inbox" style={{ fontSize: 12, color: '#003DA5', fontWeight: 600, textDecoration: 'none' }}>
+                  View in Inbox &rarr;
+                </Link>
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: 14, color: '#3A4149' }}>
+                Logged supplier delay notification and dispatched automated telemetry status confirmation request to {dossier.supplier_name || 'SUP-21'}.
+              </p>
+              <div style={{ backgroundColor: '#F4F5F7', padding: '10px 14px', borderRadius: 4, fontSize: 13, borderLeft: '4px solid #B98900' }}>
+                <code>[INBOX INBOUND] SUP-21: Logistics disruption on PO-7712. Delivery delayed by 5 days. Revised ETA Sept 9.</code>
+              </div>
+            </Card>
+
+            {/* 5. ALTERNATE SUPPLIER RFQS */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 5
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    5. Alternate Supplier RFQ Broadcast
+                  </h3>
+                </div>
+                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  ✓ BROADCAST DISPATCHED
+                </span>
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: 14, color: '#3A4149' }}>
+                Disruption recovery agent broadcast emergency RFQs to {dossier.supplier_comparison?.length || 4} regional certified suppliers for emergency capacity allocation.
+              </p>
+              <div style={{ backgroundColor: '#F4F5F7', padding: '10px 14px', borderRadius: 4, fontSize: 13, borderLeft: '4px solid #003DA5' }}>
+                <code>[OUTBOUND RFQ] Broadcast sent to SUP-34 (Metro Auto Parts) & SUP-41 (Rapid Auto Components) for emergency rate and 48h lead-time confirmation.</code>
+              </div>
+            </Card>
+
+            {/* 6. MULTI-CRITERIA OPTIONS COMPARISON */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 6
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    6. Multi-Criteria Options Comparison Matrix
+                  </h3>
+                </div>
+                <span style={{ fontSize: 12, color: '#8A919B' }}>Deterministic Hard Filter Applied</span>
+              </div>
+              
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>SUPPLIER CANDIDATE</Th>
+                    <Th>PRICE / UNIT</Th>
+                    <Th>LEAD TIME</Th>
+                    <Th>AVAILABLE QTY</Th>
+                    <Th>ISO / AQL COMPLIANCE</Th>
+                    <Th>RELIABILITY</Th>
+                    <Th>SCORE</Th>
+                    <Th>SELECTION VERDICT</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dossier.supplier_comparison?.map((s) => (
+                    <tr key={s.supplier_id} style={{ backgroundColor: s.is_selected ? 'rgba(0, 61, 165, 0.04)' : 'transparent' }}>
+                      <Td>
+                        <strong>{s.supplier_name}</strong>
+                        <div style={{ fontSize: 11, color: '#8A919B' }}>{s.supplier_id}</div>
+                      </Td>
+                      <Td style={{ fontFamily: 'var(--font-mono)' }}>₹{s.unit_price?.toFixed(2)}</Td>
+                      <Td style={{ fontFamily: 'var(--font-mono)' }}>{s.lead_time_days}d</Td>
+                      <Td style={{ fontFamily: 'var(--font-mono)' }}>{s.available_quantity?.toLocaleString()}u</Td>
+                      <Td>
+                        {s.certification_valid ? (
+                          <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 600 }}>✓ ISO 9001 VALID</span>
+                        ) : (
+                          <span style={{ color: '#C4302B', fontSize: 12, fontWeight: 600 }}>✕ CERT EXPIRED</span>
+                        )}
+                      </Td>
+                      <Td style={{ fontFamily: 'var(--font-mono)' }}>{s.reliability_score}%</Td>
+                      <Td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{s.score}</Td>
+                      <Td>
+                        {s.is_selected ? (
+                          <span style={{ color: '#1E8E5A', fontWeight: 700, fontSize: 12 }}>● SELECTED</span>
+                        ) : s.rejection_reason ? (
+                          <span style={{ color: '#C4302B', fontSize: 12 }}>✕ {s.rejection_reason}</span>
+                        ) : (
+                          <span style={{ color: '#8A919B', fontSize: 12 }}>ELIGIBLE</span>
+                        )}
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+
+            {/* 7. RECOMMENDED DECISION BLOCK & HUMAN APPROVAL ACTION GATE */}
+            <Card style={{ padding: 24, border: '2px solid #003DA5', backgroundColor: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 7
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#12161C' }}>
+                    7. Recommended Recovery Plan & Decision Gate
+                  </h3>
+                </div>
+                <div>
+                  {isApproved ? (
+                    <span style={{ color: '#1E8E5A', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                      ● AUTHORIZED (OPERATIONS MANAGER)
+                    </span>
+                  ) : (
+                    <span style={{ color: '#B98900', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                      ● AWAITING MANAGER SIGN-OFF
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {plan ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 6px', fontSize: 16, color: '#003DA5' }}>{plan.plan_name}</h4>
+                    <p style={{ margin: 0, fontSize: 14, color: '#3A4149', lineHeight: 1.5 }}>
+                      <strong>Operational Rationale:</strong> {plan.rationale}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                    <div style={{ backgroundColor: '#F4F5F7', padding: '12px 14px', borderRadius: 4 }}>
+                      <div style={{ fontSize: 11, color: '#8A919B' }}>PRIMARY SUPPLIER</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#12161C' }}>{plan.supplier_name}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F4F5F7', padding: '12px 14px', borderRadius: 4 }}>
+                      <div style={{ fontSize: 11, color: '#8A919B' }}>TOTAL ORDER COST</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#12161C', fontFamily: 'var(--font-mono)' }}>
+                        ₹{plan.estimated_cost?.toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: '#F4F5F7', padding: '12px 14px', borderRadius: 4 }}>
+                      <div style={{ fontSize: 11, color: '#8A919B' }}>ESTIMATED DELIVERY</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#12161C' }}>{plan.estimated_delivery_days} Days</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F4F5F7', padding: '12px 14px', borderRadius: 4 }}>
+                      <div style={{ fontSize: 11, color: '#8A919B' }}>ROBUSTNESS SCORE</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1E8E5A' }}>{plan.overall_score} / 100</div>
+                    </div>
+                  </div>
+
+                  {/* Fact Validation Checks */}
+                  <div style={{ backgroundColor: '#F4F5F7', padding: '12px 14px', borderRadius: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#12161C', marginBottom: 6 }}>
+                      DETERMINISTIC VALIDATION FACTS:
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: '#1E8E5A' }}>
+                      {plan.why_this_plan?.map((fact, idx) => (
+                        <span key={idx}>{fact}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* PROMINENT APPROVAL / REJECT / DISPATCH BUTTONS */}
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: 16,
+                      backgroundColor: '#1E242C',
+                      borderRadius: 6,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: 14 }}>
+                        {isApproved ? 'Plan Authorized for ERP Execution' : 'Human-in-the-Loop Decision Gate'}
+                      </div>
+                      <div style={{ color: '#8A919B', fontSize: 12 }}>
+                        {isApproved
+                          ? 'Operational approval granted by Operations Manager. Purchase order ready for dispatch.'
+                          : `Estimated cost (₹${plan.estimated_cost?.toLocaleString()}) requires manager authorization before commitment.`}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {isPendingApproval && (
+                        <>
+                          <Button
+                            onClick={handleApprove}
+                            disabled={actionLoading}
+                            variant="primary"
+                            style={{ fontSize: 13, padding: '9px 20px', fontWeight: 700 }}
+                          >
+                            {actionLoading ? <Spinner size="sm" /> : '✓ Authorize Plan'}
+                          </Button>
+                          <Button
+                            onClick={() => setShowRejectModal(true)}
+                            disabled={actionLoading}
+                            variant="secondary"
+                            style={{ fontSize: 13, padding: '9px 16px' }}
+                          >
+                            ✕ Reject Plan
+                          </Button>
+                        </>
+                      )}
+
+                      {isApproved && !isExecuted && (
+                        <Button
+                          onClick={handleExecute}
+                          disabled={actionLoading}
+                          variant="primary"
+                          style={{ fontSize: 13, padding: '9px 22px', fontWeight: 700, backgroundColor: '#1E8E5A' }}
+                        >
+                          {actionLoading ? <Spinner size="sm" /> : 'Dispatch Purchase Order to ERP →'}
+                        </Button>
+                      )}
+
+                      {isExecuted && (
+                        <span style={{ color: '#1E8E5A', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                          ✓ COMMITTED & RESOLVED IN ERP
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#8A919B', fontSize: 14 }}>No recovery plan formulated.</div>
+              )}
+            </Card>
+
+            {/* 8. SIMULATED ERP UPDATE */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 8
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    8. Simulated ERP State Update
+                  </h3>
+                </div>
+                <span style={{ color: isExecuted ? '#1E8E5A' : '#8A919B', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  {isExecuted ? '✓ ERP SYNCHRONIZED' : '● STAGED FOR DISPATCH'}
+                </span>
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: 14, color: '#3A4149' }}>
+                {isExecuted
+                  ? `Recovery purchase order confirmed and committed to PostgreSQL ERP schema with active logistics tracking.`
+                  : `Purchase order payload constructed; will commit to PostgreSQL procurement tables upon dispatch.`}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, backgroundColor: '#F4F5F7', padding: '10px 14px', borderRadius: 4, fontSize: 13 }}>
+                <div><strong>Target Supplier:</strong> {plan?.supplier_id || 'SUP-34'}</div>
+                <div><strong>ERP PO Status:</strong> {isExecuted ? 'CONFIRMED' : 'STAGED'}</div>
+                <div><strong>Projected Coverage Restored:</strong> {plan?.simulation?.coverage_after_recovery_days || 28.5} Days</div>
+              </div>
+            </Card>
+
+            {/* 9. AUDIT TRAIL */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ backgroundColor: '#003DA5', color: '#FFFFFF', padding: '3px 8px', fontSize: 12, fontWeight: 700, borderRadius: 3 }}>
+                    STEP 9
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                    9. Complete Audit Trail & Decision Milestones
+                  </h3>
+                </div>
+                <Link to="/audit-trail" style={{ fontSize: 12, color: '#003DA5', fontWeight: 600, textDecoration: 'none' }}>
+                  Full Audit Ledger &rarr;
+                </Link>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {dossier.decision_timeline?.map((ev, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      backgroundColor: '#F4F5F7',
+                      borderRadius: 4,
+                      fontSize: 13,
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8A919B' }}>
+                        {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '00:00:00'}
+                      </span>
+                      <strong>{ev.action}</strong>
+                      <span style={{ color: '#3A4149' }}>{ev.outcome}</span>
+                    </div>
+                    <span style={{ color: '#1E8E5A', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                      ✓ {ev.status}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Deterministic Fact Checks */}
-          <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #D5D8DC', marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#3A4149', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-              Deterministic Validation Facts
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 4 }}>
-              {plan.why_this_plan?.map((fact, idx) => (
-                <div key={idx} style={{ fontSize: 12, color: '#1E8E5A', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)' }}>
-                  <span>✓</span> {fact}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {plan.rationale && (
-            <div style={{ fontSize: 12, color: '#3A4149', background: '#F4F5F7', padding: 8, borderRadius: 4, fontFamily: 'var(--font-mono)' }}>
-              OPERATIONAL RATIONALE: {plan.rationale}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* SECTION G: HUMAN APPROVAL */}
-      <Card style={{ padding: 18, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#12161C', textTransform: 'uppercase' }}>
-                Operational Authority & Sign-Off
-              </h2>
-              {isApproved ? (
-                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  {isHumanEscalated || approval?.status === 'APPROVED' ? '● HUMAN-AUTHORIZED (OPERATIONS MANAGER)' : '● AUTO-AUTHORIZED (WITHIN BUDGET THRESHOLD)'}
-                </span>
-              ) : isPendingApproval ? (
-                <span style={{ color: '#B98900', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>● SIGN-OFF NEEDED</span>
-              ) : (
-                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>● AUTO-AUTHORIZED</span>
-              )}
-            </div>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8A919B' }}>
-              {isApproved
-                ? (isHumanEscalated || approval?.status === 'APPROVED'
-                    ? 'Recovery purchase order authorized by Operations Manager. Ready for ERP execution.'
-                    : 'Recovery purchase order auto-authorized within standard autonomous threshold (< INR 75,000).')
-                : isPendingApproval
-                ? `Recovery order amount (INR ${plan?.estimated_cost?.toLocaleString()}) exceeds operational threshold (INR ${approval?.approval_threshold?.toLocaleString() || '75,000'}). Manager authorization required.`
-                : 'Plan parameters within standard operational limits.'}
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {isPendingApproval && (
-              <>
-                <Button
-                  onClick={handleApprove}
-                  disabled={actionLoading}
-                  variant="primary"
-                  style={{ fontSize: 12, padding: '7px 16px' }}
-                >
-                  {actionLoading ? <Spinner size="sm" /> : '✓ Authorize Plan'}
-                </Button>
-                <Button
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={actionLoading}
-                  variant="secondary"
-                  style={{ fontSize: 12, padding: '7px 12px' }}
-                >
-                  ✕ Reject Plan
-                </Button>
-              </>
-            )}
-
-            {isApproved && !isExecuted && (
-              <Button
-                onClick={handleExecute}
-                disabled={actionLoading}
-                variant="primary"
-                style={{ fontSize: 12, padding: '7px 18px' }}
-              >
-                {actionLoading ? <Spinner size="sm" /> : 'Dispatch Purchase Order to ERP'}
-              </Button>
-            )}
-
-            {isExecuted && (
-              <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                ✓ EXECUTED & COMMITTED TO ERP
-              </span>
-            )}
-          </div>
-        </div>
-
-        {showRejectModal && (
-          <div style={{ marginTop: 12, padding: 12, background: '#F4F5F7', border: '1px solid #D5D8DC', borderRadius: 6 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#12161C', marginBottom: 4, textTransform: 'uppercase' }}>
-              Specify Rejection Reason for Audit Log:
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Alternative supplier preferred, budget reallocated"
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              style={{ width: '100%', padding: '6px 10px', border: '1px solid #D5D8DC', borderRadius: 4, fontSize: 12, marginBottom: 8, outline: 'none', fontFamily: 'var(--font-body)' }}
-            />
-            <div style={{ display: 'flex', gap: 6 }}>
-              <Button onClick={handleReject} disabled={actionLoading} variant="primary" style={{ fontSize: 11, padding: '5px 12px' }}>
-                Confirm Rejection
-              </Button>
-              <Button onClick={() => setShowRejectModal(false)} variant="secondary" style={{ fontSize: 11, padding: '5px 10px' }}>
-                Cancel
-              </Button>
-            </div>
+            </Card>
           </div>
         )}
-      </Card>
 
-      {/* SECTION F: ALTERNATIVE SUPPLIER OPTIONS COMPACT MATRIX */}
-      <Card style={{ padding: 18, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12161C', textTransform: 'uppercase' }}>
-              Supplier Candidate Comparison Matrix
-            </h2>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8A919B' }}>
-              Deterministic filtering across ISO Certifications, AQL levels, stock availability & lead times
-            </p>
-          </div>
-        </div>
+        {/* ========================================================================= */}
+        {/* TAB 2: STRONG MVP FEATURES (10 CAPABILITIES SUITE)                        */}
+        {/* ========================================================================= */}
+        {activeTab === 'mvp_suite' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            
+            {/* FEATURE 1: SUPPLIER RELIABILITY MEMORY */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>🧠</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  1. Supplier Reliability Memory
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['1_supplier_reliability_memory']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Quality Pass:</strong> {mvp['1_supplier_reliability_memory']?.historical_quality_score}%</div>
+                <div><strong>On-Time Rate:</strong> {mvp['1_supplier_reliability_memory']?.on_time_delivery_rate}%</div>
+                <div><strong>Claim Mismatches:</strong> {mvp['1_supplier_reliability_memory']?.claim_mismatch_flags}</div>
+              </div>
+            </Card>
 
-        <Table>
-          <thead>
-            <tr>
-              <Th>Supplier</Th>
-              <Th>Price</Th>
-              <Th>Lead Time</Th>
-              <Th>Available Qty</Th>
-              <Th>Quality / AQL</Th>
-              <Th>Reliability</Th>
-              <Th>Score</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {dossier.supplier_comparison?.slice(0, 5).map((sup) => (
-              <tr key={sup.supplier_id}>
-                <Td>
-                  <code style={{ fontWeight: 700, color: '#003DA5' }}>{sup.supplier_id}</code> &bull; {sup.supplier_name}
-                </Td>
-                <Td style={{ fontFamily: 'var(--font-mono)' }}>INR {sup.unit_price?.toFixed(2)}</Td>
-                <Td style={{ fontFamily: 'var(--font-mono)' }}>{sup.lead_time_days}d</Td>
-                <Td style={{ fontFamily: 'var(--font-mono)' }}>{sup.available_quantity?.toLocaleString()}u</Td>
-                <Td>
-                  <div style={{ fontFamily: 'var(--font-mono)' }}>{sup.quality_score ? (sup.quality_score > 1 ? sup.quality_score.toFixed(1) : `${(sup.quality_score * 100).toFixed(0)}%`) : '-'}</div>
-                  <div style={{ fontSize: 10, color: sup.certification_valid ? '#1E8E5A' : '#C4302B', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-                    {sup.certification_valid ? 'ISO VALID' : 'ISO EXPIRED'}
+            {/* FEATURE 2: MULTI-STEP REPLANNING */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>🔄</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  2. Multi-Step Adaptive Replanning
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['2_multi_step_replanning']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Loop Engine:</strong> {mvp['2_multi_step_replanning']?.engine_state}</div>
+                <div><strong>Iterations:</strong> {mvp['2_multi_step_replanning']?.replanning_iterations}</div>
+                <div><strong>Gate Status:</strong> {mvp['2_multi_step_replanning']?.verification_status}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 3: PRODUCTION RESCHEDULING */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>🏭</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  3. Production Rescheduling & Prioritization
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['3_production_rescheduling']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Priority Order:</strong> {mvp['3_production_rescheduling']?.critical_order_id}</div>
+                <div><strong>Tier:</strong> {mvp['3_production_rescheduling']?.priority_tier}</div>
+                <div><strong>Hours Saved:</strong> {mvp['3_production_rescheduling']?.hours_saved_by_resequencing}h</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 4: PARTIAL SHIPMENT STRATEGY */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>📦</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  4. Partial Shipment & Split-Sourcing Strategy
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['4_partial_shipment_strategy']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Split Active:</strong> {mvp['4_partial_shipment_strategy']?.split_sourcing_active ? 'YES' : 'SINGLE_VENDOR'}</div>
+                <div><strong>Allocations:</strong> {mvp['4_partial_shipment_strategy']?.allocations_count} Supplier(s)</div>
+                <div><strong>Fulfillment:</strong> 100% Demand</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 5: BUDGET-AWARE OPTIMIZATION */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>💰</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  5. Budget-Aware Optimization
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['5_budget_aware_optimization']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Plan Cost:</strong> ₹{mvp['5_budget_aware_optimization']?.estimated_recovery_cost?.toLocaleString()}</div>
+                <div><strong>Threshold:</strong> ₹{mvp['5_budget_aware_optimization']?.autonomous_spending_threshold?.toLocaleString()}</div>
+                <div><strong>Variance:</strong> {mvp['5_budget_aware_optimization']?.cost_variance_vs_baseline}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 6: ADVERSARIAL SUPPLIER HANDLING */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>🛡️</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  6. Adversarial Supplier & Carrier Telemetry
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['6_adversarial_supplier_handling']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Carrier API:</strong> {mvp['6_adversarial_supplier_handling']?.carrier_tracking_verification}</div>
+                <div><strong>Tracking:</strong> {mvp['6_adversarial_supplier_handling']?.tracking_number}</div>
+                <div><strong>Contradiction:</strong> {mvp['6_adversarial_supplier_handling']?.status_discrepancy_detected ? 'DETECTED' : 'NONE'}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 7: HUMAN APPROVAL WORKFLOW */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>👤</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  7. Human Approval Workflow
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['7_human_approval_workflow']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Approval ID:</strong> {mvp['7_human_approval_workflow']?.approval_id}</div>
+                <div><strong>Sign-off:</strong> {mvp['7_human_approval_workflow']?.authorized_by}</div>
+                <div><strong>Status:</strong> {mvp['7_human_approval_workflow']?.status}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 8: VISUAL DASHBOARD TELEMETRY */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>📊</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  8. Visual Operational Telemetry
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['8_visual_dashboard_telemetry']?.summary}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div><strong>Coverage:</strong> {mvp['8_visual_dashboard_telemetry']?.days_of_coverage} Days</div>
+                <div><strong>Halt Time:</strong> {mvp['8_visual_dashboard_telemetry']?.hours_to_line_stop}h</div>
+                <div><strong>Risk Level:</strong> {mvp['8_visual_dashboard_telemetry']?.risk_severity}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 9: SIMULATION REPLAY */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>⏪</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  9. Simulation Replay & What-If Branching
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['9_simulation_replay']?.summary}
+              </p>
+              <div style={{ backgroundColor: '#F4F5F7', padding: '10px 12px', borderRadius: 4, fontSize: 12 }}>
+                <div style={{ marginBottom: 4 }}><strong>Branch A (Do Nothing):</strong> {mvp['9_simulation_replay']?.branch_a_do_nothing}</div>
+                <div><strong>Branch B (Optimal Mitigation):</strong> {mvp['9_simulation_replay']?.branch_b_recommended}</div>
+              </div>
+            </Card>
+
+            {/* FEATURE 10: TOOL-CALL TRACE VIEWER */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>🛠️</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>
+                  10. Agent Tool-Call Trace Viewer
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#3A4149', lineHeight: 1.5 }}>
+                {mvp['10_tool_call_trace_viewer']?.summary}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                {mvp['10_tool_call_trace_viewer']?.traces?.map((tr, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#F4F5F7', padding: '6px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                    <span>Step {tr.step}: {tr.tool}()</span>
+                    <span style={{ color: tr.status === 'SUCCESS' ? '#1E8E5A' : '#003DA5' }}>{tr.latency_ms}ms ({tr.status})</span>
                   </div>
-                </Td>
-                <Td style={{ fontFamily: 'var(--font-mono)' }}>
-                  {sup.reliability_score ? (sup.reliability_score > 1 ? sup.reliability_score.toFixed(1) : `${(sup.reliability_score * 100).toFixed(0)}%`) : '-'}
-                </Td>
-                <Td style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-mono)' }}>
-                  {sup.score > 0 ? sup.score.toFixed(1) : '0.0'}
-                </Td>
-                <Td>
-                  {sup.is_selected ? (
-                    <span style={{ color: '#1E8E5A', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                      ● SELECTED
-                    </span>
-                  ) : sup.rejection_reason ? (
-                    <span style={{ color: '#C4302B', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-                      ✕ {sup.rejection_reason}
-                    </span>
-                  ) : (
-                    <span style={{ color: '#8A919B', fontSize: 11, fontFamily: 'var(--font-mono)' }}>ELIGIBLE</span>
-                  )}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </Card>
+                ))}
+              </div>
+            </Card>
+
+          </div>
+        )}
+
+      </div>
+
+      {/* REJECT MODAL */}
+      {showRejectModal && (
+        <Modal title="Reject Recovery Plan" onClose={() => setShowRejectModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 14, color: '#3A4149', margin: 0 }}>
+              Specify the operational or budget justification for rejecting this recovery recommendation:
+            </p>
+            <Input
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Total cost exceeds budget ceiling; seek alternative regional supplier."
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <Button onClick={() => setShowRejectModal(false)} variant="secondary">Cancel</Button>
+              <Button onClick={handleReject} disabled={actionLoading} variant="primary" style={{ backgroundColor: '#C4302B' }}>
+                Confirm Rejection
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </Layout>
   );
 }

@@ -122,4 +122,5 @@ const api = {
   resetScenario: (scenarioId) => request('POST', `/scenarios/${scenarioId}/reset`),
 };
 
+export { api };
 export default api;

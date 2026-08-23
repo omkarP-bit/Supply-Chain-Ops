@@ -73,6 +73,8 @@ class RecommendedPlanDossier(BaseModel):
     overall_score: float = 0.0
     status: str = "PROPOSED"
     rationale: str = ""
+    reliability_rationale: str = ""
+    budget_impact_analysis: str = ""
     why_this_plan: list[str] = []
     simulation: dict[str, Any] = {}
     allocations: list[dict[str, Any]] = []
@@ -105,8 +107,10 @@ class IncidentDossierResponse(BaseModel):
     incident_id: str
     incident_type: str
     material_id: str
+    material_name: Optional[str] = None
     po_id: Optional[str] = None
     supplier_id: Optional[str] = None
+    supplier_name: Optional[str] = None
     description: Optional[str] = None
     severity: str
     status: str
@@ -121,3 +125,5 @@ class IncidentDossierResponse(BaseModel):
     approval_request: Optional[dict[str, Any]] = None
     decision_timeline: list[DecisionTimelineItem] = []
     verification: Optional[dict[str, Any]] = None
+    demo_flow_steps: list[dict[str, Any]] = []
+    mvp_features: Optional[dict[str, Any]] = None

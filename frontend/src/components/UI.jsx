@@ -194,3 +194,127 @@ export function Td({ children, style = {} }) {
     </td>
   );
 }
+
+export function Badge({ children, variant = 'default', style = {} }) {
+  let color = '#3A4149';
+  if (variant === 'success') color = '#1E8E5A';
+  if (variant === 'warning') color = '#B98900';
+  if (variant === 'danger' || variant === 'critical') color = '#C4302B';
+  if (variant === 'primary' || variant === 'info') color = '#003DA5';
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 11,
+        fontWeight: 700,
+        fontFamily: 'var(--font-mono)',
+        color: color,
+        border: `1px solid ${color}`,
+        backgroundColor: 'transparent',
+        ...style,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function RiskBadge({ level = 'MEDIUM', style = {} }) {
+  const l = String(level).toUpperCase();
+  let color = '#3A4149';
+  if (l === 'CRITICAL' || l === 'HIGH') color = '#C4302B';
+  else if (l === 'MEDIUM' || l === 'AT_RISK' || l === 'WARNING') color = '#B98900';
+  else if (l === 'LOW' || l === 'RESOLVED' || l === 'HEALTHY') color = '#1E8E5A';
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 11,
+        fontWeight: 700,
+        fontFamily: 'var(--font-mono)',
+        color: color,
+        border: `1px solid ${color}`,
+        backgroundColor: 'transparent',
+        ...style,
+      }}
+    >
+      ● {l}
+    </span>
+  );
+}
+
+export function Input({ value, onChange, placeholder = '', style = {} }) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      style={{
+        width: '100%',
+        padding: '9px 12px',
+        borderRadius: 6,
+        border: '1px solid #D5D8DC',
+        fontSize: 13,
+        color: '#12161C',
+        outline: 'none',
+        boxSizing: 'border-box',
+        ...style,
+      }}
+    />
+  );
+}
+
+export function Modal({ title, children, onClose }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(18, 22, 28, 0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 8,
+          padding: 24,
+          maxWidth: 500,
+          width: '90%',
+          border: '1px solid #3A4149',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#12161C' }}>{title}</h3>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', fontSize: 18, color: '#8A919B', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
