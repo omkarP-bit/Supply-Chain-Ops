@@ -45,34 +45,8 @@ When a disruption strikes, the system calculates exact line-stop countdowns, fil
 ---
 
 ## 4. Architecture
+<img width="2528" height="1686" alt="Gemini_Generated_Image_h9vox9h9vox9h9vo" src="https://github.com/user-attachments/assets/829e200c-6498-4bf5-a11c-b180516b1b70" />
 
-```mermaid
-flowchart TD
-    Scenario["External Scenario / Telemetry Sensor"] --> DB[("PostgreSQL 16 Relational Store")]
-    DB --> FastAPI["FastAPI Operational Backend"]
-    FastAPI --> LangGraph["LangGraph Multi-Agent Orchestrator"]
-    
-    subgraph AgenticCore ["Agentic & Deterministic Core"]
-        LangGraph --> Supervisor["Supervisor Agent"]
-        Supervisor --> RiskEngine["Operational Risk Engine (Python/SQL)"]
-        Supervisor --> SupplierEngine["Supplier Evaluation Engine (Hard Filter)"]
-        RiskEngine --> RecoveryAgent["Recovery Recommendation Agent (Groq / Llama-3.1-8b)"]
-        SupplierEngine --> RecoveryAgent
-        RecoveryAgent --> SimEngine["Plan Validation & Simulation Engine"]
-    end
-
-    SimEngine --> ApprovalGate{"Autonomous Budget Gate (<= ₹75k)"}
-    ApprovalGate -->|Exceeds Limit| HITL["Human-in-the-Loop Sign-off (Operations Manager)"]
-    ApprovalGate -->|Within Limit| ToolExec["Deterministic ERP Tool Execution"]
-    HITL -->|Authorized| ToolExec
-    
-    ToolExec --> ERPUpdate[("ERP Procurement & Stock Ledger")]
-    ERPUpdate --> VerificationAgent["Verification & Replanning Agent"]
-    VerificationAgent -->|Discrepancy / Claim Mismatch| Supervisor
-    VerificationAgent -->|Verified Valid| AuditTrail[("Immutable Audit Trail")]
-    
-    FastAPI --> UI["React 18 Command Center UI"]
-```
 
 - **FastAPI Operational Backend**: Serves REST endpoints for real-time disruption ingestion, inventory telemetry, and approval commands.
 - **PostgreSQL 16 Relational Store**: The single source of operational truth for components, supplier certifications, POs, and audit logs.
