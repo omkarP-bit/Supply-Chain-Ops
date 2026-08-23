@@ -121,13 +121,14 @@ class VerificationReplanningAgent:
 
         discrepancies: list[dict[str, Any]] = []
 
-        if actual_po_status in ("NOT_CREATED", "CANCELLED", "FAILED", "REJECTED"):
-            discrepancies.append({
-                "field": "po_status",
-                "expected": "CONFIRMED",
-                "actual": actual_po_status,
-                "message": f"Purchase order was not confirmed (status={actual_po_status})",
-            })
+        if plan.plan_type != "MONITOR_ONLY" and expected_quantity > 0:
+            if actual_po_status in ("NOT_CREATED", "CANCELLED", "FAILED", "REJECTED"):
+                discrepancies.append({
+                    "field": "po_status",
+                    "expected": "CONFIRMED",
+                    "actual": actual_po_status,
+                    "message": f"Purchase order was not confirmed (status={actual_po_status})",
+                })
 
         if actual_po_quantity < expected_quantity and actual_po_status != "NOT_CREATED":
             discrepancies.append({

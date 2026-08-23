@@ -130,6 +130,17 @@ export default function Layout({ children }) {
           >
             <span style={{ marginRight: 10, color: '#8A919B' }}>▦</span> Production Schedule
           </NavLink>
+
+          {/* 6. Scenario Lab */}
+          <NavLink
+            to="/scenario-lab"
+            style={({ isActive }) => ({
+              ...styles.link,
+              ...(isActive || location.pathname.startsWith('/scenario') ? styles.activeLink : {}),
+            })}
+          >
+            <span style={{ marginRight: 10, color: '#8A919B' }}>◈</span> Scenario Lab
+          </NavLink>
         </nav>
       </aside>
 

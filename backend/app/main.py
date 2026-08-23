@@ -42,7 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api import incidents, inventory, dashboard, approvals, suppliers, recovery, audit, contract_api
+from app.api import incidents, inventory, dashboard, approvals, suppliers, recovery, audit, contract_api, scenarios
 
 # Existing routers
 app.include_router(incidents.router)
@@ -52,6 +52,7 @@ app.include_router(approvals.router)
 app.include_router(suppliers.router)
 app.include_router(recovery.router)
 app.include_router(audit.router)
+app.include_router(scenarios.router)
 
 # Contract API routers (available both at root / and /api/v1)
 app.include_router(contract_api.router)

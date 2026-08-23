@@ -213,17 +213,21 @@ export default function Dashboard() {
                         <RiskBadge level={inc.severity || 'MEDIUM'} />
                       </Td>
                       <Td>
-                        {inc.approval_status === 'PENDING' ? (
+                        {inc.approval_status === 'PENDING' || inc.status === 'AWAITING_APPROVAL' || inc.status === 'ANALYZING' ? (
                           <span style={{ color: '#B98900', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             ● SIGN-OFF NEEDED
                           </span>
-                        ) : inc.approval_status === 'APPROVED' ? (
+                        ) : inc.approval_status === 'APPROVED' || inc.status === 'APPROVED' ? (
                           <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             ● AUTHORIZED
                           </span>
-                        ) : (
+                        ) : inc.status === 'RESOLVED' || inc.status === 'COMPLETED' ? (
                           <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-                            ● AUTO-RESOLVED
+                            ● RESOLVED
+                          </span>
+                        ) : (
+                          <span style={{ color: '#8A919B', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                            ● NOT REQUIRED
                           </span>
                         )}
                       </Td>

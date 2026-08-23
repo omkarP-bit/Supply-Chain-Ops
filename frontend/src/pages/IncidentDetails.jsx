@@ -93,9 +93,9 @@ export default function IncidentDetails() {
   const verification = dossier.verification;
   const isExecuted = dossier.status === 'COMPLETED' || dossier.status === 'RESOLVED' || dossier.status === 'EXECUTED' || plan?.status === 'COMPLETED';
   const isApproved = approval?.status === 'APPROVED' || isExecuted;
-  const isPendingApproval = !isExecuted && !isApproved && approval?.status === 'PENDING';
+  const isHumanEscalated = plan?.approval_required || (plan?.estimated_cost && plan?.estimated_cost > 75000) || !!approval;
+  const isPendingApproval = !isApproved && (approval?.status === 'PENDING' || dossier.workflow_stage === 'APPROVE' || dossier.status === 'AWAITING_APPROVAL' || isHumanEscalated);
   const isAutoResolved = dossier.status === 'RESOLVED' && (!approval || approval.status === 'APPROVED');
-  const isHumanEscalated = !isAutoResolved && (isPendingApproval || (approval && approval.requested_amount > 75000));
 
   // Define 9-step demo sequence steps
   const demoSteps = [
@@ -147,8 +147,8 @@ export default function IncidentDetails() {
     {
       id: 6,
       title: isHumanEscalated ? '6. Human Escalation' : '6. Autonomous Policy',
-      sub: isHumanEscalated ? 'Manager Sign-Off' : 'Auto-Authorized',
-      badge: isHumanEscalated ? (isApproved ? 'AUTHORIZED' : isPendingApproval ? 'PENDING' : 'ESCALATED') : 'AUTO-RESOLVED',
+      sub: isHumanEscalated ? (isApproved ? 'Manager Authorized' : 'Manager Sign-Off') : 'Auto-Authorized',
+      badge: isHumanEscalated ? (isApproved ? 'HUMAN-AUTHORIZED' : isPendingApproval ? 'PENDING' : 'ESCALATED') : 'AUTO-RESOLVED',
       status: isPendingApproval ? 'ACTIVE' : 'DONE',
       summary: isHumanEscalated
         ? `Order amount (INR ${plan?.estimated_cost?.toLocaleString()}) > threshold (INR ${approval?.approval_threshold?.toLocaleString() || '75,000'}). Paused at HITL gate.`
@@ -520,7 +520,9 @@ export default function IncidentDetails() {
                 Operational Authority & Sign-Off
               </h2>
               {isApproved ? (
-                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>● AUTHORIZED</span>
+                <span style={{ color: '#1E8E5A', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  {isHumanEscalated || approval?.status === 'APPROVED' ? '● HUMAN-AUTHORIZED (OPERATIONS MANAGER)' : '● AUTO-AUTHORIZED (WITHIN BUDGET THRESHOLD)'}
+                </span>
               ) : isPendingApproval ? (
                 <span style={{ color: '#B98900', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>● SIGN-OFF NEEDED</span>
               ) : (
@@ -529,7 +531,9 @@ export default function IncidentDetails() {
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8A919B' }}>
               {isApproved
-                ? 'Recovery purchase order is authorized for execution and ERP dispatch.'
+                ? (isHumanEscalated || approval?.status === 'APPROVED'
+                    ? 'Recovery purchase order authorized by Operations Manager. Ready for ERP execution.'
+                    : 'Recovery purchase order auto-authorized within standard autonomous threshold (< INR 75,000).')
                 : isPendingApproval
                 ? `Recovery order amount (INR ${plan?.estimated_cost?.toLocaleString()}) exceeds operational threshold (INR ${approval?.approval_threshold?.toLocaleString() || '75,000'}). Manager authorization required.`
                 : 'Plan parameters within standard operational limits.'}

@@ -10,6 +10,7 @@ import Incidents from './pages/Incidents';
 import IncidentDetails from './pages/IncidentDetails';
 import ProductionSchedule from './pages/ProductionSchedule';
 import Inbox from './pages/Inbox';
+import ScenarioLab from './pages/ScenarioLab';
 
 export default function App() {
   return (
@@ -17,6 +18,8 @@ export default function App() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/inbox" element={<Inbox />} />
+      <Route path="/scenario-lab" element={<ScenarioLab />} />
+      <Route path="/scenarios" element={<ScenarioLab />} />
       <Route path="/incidents" element={<Incidents />} />
       <Route path="/incidents/:id" element={<IncidentDetails />} />
       <Route path="/audit-log" element={<AuditTrail />} />

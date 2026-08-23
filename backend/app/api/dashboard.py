@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.db.models.contract_models import Component
 from app.db.models.materials import Material
+from app.db.models.workflow import ApprovalRequest
 from app.db.repositories import incident_repo, approval_repo, supplier_repo, production_repo, recovery_repo, inventory_repo
 from app.engines.risk_engine import OperationalRiskEngine
 from app.schemas.dashboard import (
@@ -27,14 +28,13 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
 
     pending_approvals_raw = await approval_repo.list_pending_approvals(db)
 
-    # 1. Critical Incidents List (Strict 1-per-component deduplication)
-    seen_materials = set()
+    # 1. Critical Incidents List (Deduplicated by incident_id)
+    seen_incidents = set()
     critical_incidents: list[CriticalIncidentItem] = []
     for inc in all_incidents:
-        mat = inc.material_id or "UNKNOWN"
-        if mat in seen_materials:
+        if inc.incident_id in seen_incidents:
             continue
-        seen_materials.add(mat)
+        seen_incidents.add(inc.incident_id)
 
         cov_days = 0.0
         prod_impact = 0.0
@@ -50,23 +50,53 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
                 pass
 
         # Check approval status
-        plans = await recovery_repo.list_plans_for_incident(db, inc.incident_id)
-        if plans:
-            for p in plans:
-                appr = await approval_repo.get_pending_approval_for_plan(db, p.plan_id)
-                if appr:
-                    appr_status = appr.status
-                    break
+        appr_stmt = (
+            select(ApprovalRequest)
+            .where(ApprovalRequest.incident_id == inc.incident_id)
+            .order_by(ApprovalRequest.requested_at.desc())
+            .limit(1)
+        )
+        appr_res = await db.execute(appr_stmt)
+        appr = appr_res.scalars().first()
+
+        if not appr:
+            plans = await recovery_repo.list_plans_for_incident(db, inc.incident_id)
+            if plans:
+                for p in plans:
+                    p_appr_stmt = (
+                        select(ApprovalRequest)
+                        .where(ApprovalRequest.plan_id == p.plan_id)
+                        .order_by(ApprovalRequest.requested_at.desc())
+                        .limit(1)
+                    )
+                    p_appr_res = await db.execute(p_appr_stmt)
+                    p_appr = p_appr_res.scalars().first()
+                    if p_appr:
+                        appr = p_appr
+                        break
+
+        if appr:
+            appr_status = appr.status
+        elif inc.status in ("AWAITING_APPROVAL", "WAITING_FOR_APPROVAL") or (inc.workflow_state and isinstance(inc.workflow_state, dict) and inc.workflow_state.get("workflow_stage") == "APPROVE"):
+            appr_status = "PENDING"
+        elif inc.status == "APPROVED":
+            appr_status = "APPROVED"
+        elif inc.status in ("RESOLVED", "COMPLETED"):
+            appr_status = "RESOLVED"
+        else:
+            appr_status = "PENDING" if (inc.severity in ("CRITICAL", "HIGH") and inc.status not in ("RESOLVED", "COMPLETED")) else "NOT_REQUIRED"
 
         # Look up material/component name
         mat_name = None
         if inc.material_id:
-            comp_obj = await db.get(Component, inc.material_id)
+            comp_res = await db.execute(select(Component).where(Component.component_id == inc.material_id))
+            comp_obj = comp_res.scalar_one_or_none()
             if comp_obj:
                 mat_name = comp_obj.name
             else:
-                mat_obj = await db.get(Material, inc.material_id)
-                mat_name = mat_obj.name if mat_obj else inc.material_id
+                mat_res = await db.execute(select(Material).where(Material.material_id == inc.material_id))
+                mat_obj = mat_res.scalar_one_or_none()
+                mat_name = mat_obj.material_name if mat_obj else inc.material_id
 
         critical_incidents.append(
             CriticalIncidentItem(

@@ -184,31 +184,34 @@ class WorkflowService:
 
         await recovery_repo.update_plan_status(session, plan_id, "EXECUTING")
 
-        supplier_id = details.get("supplier_id", "SUP-34")
+        supplier_id = details.get("supplier_id")
         material_id = details.get("material_id", "COMP-104")
-        qty = Decimal(str(details.get("quantity", 0) or details.get("required_quantity", 0) or 800))
-        unit_p = Decimal(str(details.get("unit_price", 120)))
+        qty = Decimal(str(details.get("quantity", 0) or details.get("required_quantity", 0) or 0))
+        unit_p = Decimal(str(details.get("unit_price", 0)))
 
-        po_result = await create_purchase_order(
-            session,
-            supplier_id=supplier_id,
-            material_id=material_id,
-            quantity=qty,
-            unit_price=unit_p,
-        )
-        po_id = po_result["po_id"]
+        po_id = None
+        if supplier_id and qty > 0:
+            po_result = await create_purchase_order(
+                session,
+                supplier_id=supplier_id,
+                material_id=material_id,
+                quantity=qty,
+                unit_price=unit_p,
+            )
+            po_id = po_result["po_id"]
 
-        await audit_repo.create_audit_event(
-            session,
-            incident_id=plan.incident_id,
-            agent_name="WorkflowService",
-            event_type="PO_CREATED",
-            action="purchase_order_created",
-            input_data={"plan_id": plan_id},
-            output_data=po_result,
-        )
+            await audit_repo.create_audit_event(
+                session,
+                incident_id=plan.incident_id,
+                agent_name="WorkflowService",
+                event_type="PO_CREATED",
+                action="purchase_order_created",
+                input_data={"plan_id": plan_id},
+                output_data=po_result,
+            )
 
         await recovery_repo.update_plan_status(session, plan_id, "COMPLETED")
+        await incident_repo.update_incident_status(session, plan.incident_id, "RESOLVED")
 
         # Automatically execute deterministic post-execution verification
         ver_result = await self.verification_agent.verify_execution(session, plan_id)

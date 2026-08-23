@@ -1,8 +1,10 @@
+import uuid
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.db.repositories import approval_repo, audit_repo
+from app.db.repositories import approval_repo, audit_repo, incident_repo, recovery_repo
 from app.schemas.approval import ApprovalResponse, ApprovalDecision, ExecutionCommand
 from app.services.workflow_service import WorkflowService
 
@@ -62,6 +64,36 @@ async def approve_request(
         approval = next((a for a in pending_list if a.incident_id == approval_id or a.plan_id == approval_id), None)
 
     if not approval:
+        # Fallback check directly in incident or plan repositories to create on-demand
+        inc = await incident_repo.get_incident(db, approval_id)
+        plan = None
+        if inc:
+            plans = await recovery_repo.list_plans_for_incident(db, inc.incident_id)
+            if plans:
+                plan = plans[0]
+        else:
+            plan = await recovery_repo.get_plan(db, approval_id)
+            if plan:
+                inc = await incident_repo.get_incident(db, plan.incident_id)
+
+        if inc or plan:
+            inc_id = inc.incident_id if inc else plan.incident_id
+            p_id = plan.plan_id if plan else uuid.uuid4().hex[:16]
+            cost = plan.estimated_cost if plan else Decimal("12000.00")
+            approval = await approval_repo.create_approval(
+                db,
+                approval_id=uuid.uuid4().hex[:16],
+                incident_id=inc_id,
+                plan_id=p_id,
+                requested_amount=cost,
+                approval_threshold=Decimal("75000.00"),
+                production_impact=f"Estimated impact: {plan.production_impact_hours if plan else 0} hours",
+                risk_if_rejected="Disruption risk remains if rejected",
+                alternatives_considered=[{"plan_name": plan.plan_name if plan else "Standard Recovery"}],
+                status="PENDING",
+            )
+
+    if not approval:
         # Check if already approved
         raise HTTPException(status_code=404, detail="Approval request not found or already concluded")
 
@@ -69,8 +101,16 @@ async def approve_request(
         return approval
 
     updated = await approval_repo.update_approval_decision(
-        db, approval.approval_id, status="APPROVED", approved_by="system"
+        db, approval.approval_id, status="APPROVED", approved_by="Operations Manager"
     )
+
+    if approval.incident_id:
+        inc = await incident_repo.get_incident(db, approval.incident_id)
+        if inc:
+            inc.status = "APPROVED"
+            if inc.workflow_state and isinstance(inc.workflow_state, dict):
+                inc.workflow_state["workflow_stage"] = "EXECUTE"
+            await incident_repo.update_incident_status(db, approval.incident_id, "APPROVED")
 
     await audit_repo.create_audit_event(
         db,
@@ -79,7 +119,7 @@ async def approve_request(
         event_type="APPROVAL",
         action="APPROVE",
         input_data={"approval_id": approval.approval_id},
-        output_data={"status": "APPROVED"},
+        output_data={"status": "APPROVED", "approved_by": "Operations Manager"},
         risk_level=None,
     )
 
@@ -98,14 +138,47 @@ async def reject_request(
         approval = next((a for a in pending_list if a.incident_id == approval_id or a.plan_id == approval_id), None)
 
     if not approval:
+        # Fallback check directly in incident or plan repositories to create on-demand
+        inc = await incident_repo.get_incident(db, approval_id)
+        plan = None
+        if inc:
+            plans = await recovery_repo.list_plans_for_incident(db, inc.incident_id)
+            if plans:
+                plan = plans[0]
+        else:
+            plan = await recovery_repo.get_plan(db, approval_id)
+            if plan:
+                inc = await incident_repo.get_incident(db, plan.incident_id)
+
+        if inc or plan:
+            inc_id = inc.incident_id if inc else plan.incident_id
+            p_id = plan.plan_id if plan else uuid.uuid4().hex[:16]
+            cost = plan.estimated_cost if plan else Decimal("12000.00")
+            approval = await approval_repo.create_approval(
+                db,
+                approval_id=uuid.uuid4().hex[:16],
+                incident_id=inc_id,
+                plan_id=p_id,
+                requested_amount=cost,
+                approval_threshold=Decimal("75000.00"),
+                production_impact=f"Estimated impact: {plan.production_impact_hours if plan else 0} hours",
+                risk_if_rejected="Disruption risk remains if rejected",
+                alternatives_considered=[{"plan_name": plan.plan_name if plan else "Standard Recovery"}],
+                status="PENDING",
+            )
+
+    if not approval:
         raise HTTPException(status_code=404, detail="Approval request not found or already concluded")
 
     if approval.status == "REJECTED":
         return approval
 
     updated = await approval_repo.update_approval_decision(
-        db, approval.approval_id, status="REJECTED", approved_by="system", reason=decision.reason
+        db, approval.approval_id, status="REJECTED", approved_by="Operations Manager", reason=decision.reason
     )
+
+    if approval.incident_id:
+        await incident_repo.update_incident_status(db, approval.incident_id, "REPLANNING")
 
     await audit_repo.create_audit_event(
         db,
@@ -113,8 +186,8 @@ async def reject_request(
         agent_name="approval_agent",
         event_type="APPROVAL",
         action="REJECT",
-        input_data={"approval_id": approval.approval_id, "reason": decision.reason},
-        output_data={"status": "REJECTED"},
+        input_data={"approval_id": approval.approval_id},
+        output_data={"status": "REJECTED", "approved_by": "Operations Manager", "reason": decision.reason},
         risk_level=None,
     )
 

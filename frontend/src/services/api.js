@@ -116,10 +116,10 @@ const api = {
       return [];
     }
   },
-  listAuditEvents: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request('GET', `/audit${q ? '?' + q : ''}`);
-  },
+  // Scenario Lab Simulation & Injection APIs
+  listScenarios: () => request('GET', '/scenarios'),
+  injectScenario: (scenarioId) => request('POST', `/scenarios/${scenarioId}/inject`),
+  resetScenario: (scenarioId) => request('POST', `/scenarios/${scenarioId}/reset`),
 };
 
 export default api;

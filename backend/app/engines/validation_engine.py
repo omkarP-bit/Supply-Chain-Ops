@@ -36,6 +36,11 @@ class PlanValidationEngine:
         total_cost = Decimal(str(plan_dict.get("total_cost", 0)))
 
         allocations = plan_dict.get("allocations") or (plan_dict.get("plan_details") or {}).get("allocations")
+        if not supplier_id and not allocations:
+            # Monitor-only or buffer absorption plan
+            report.valid = True
+            return report
+
         if allocations:
             total_alloc_cost = Decimal("0")
             for alloc in allocations:

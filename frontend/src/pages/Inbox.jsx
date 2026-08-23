@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 import Layout from '../components/Layout';
 import { Card, Button } from '../components/UI';
 
@@ -495,6 +496,53 @@ export default function Inbox() {
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [checkedIds, setCheckedIds] = useState(new Set());
   const navigate = useNavigate();
+
+  useEffect(() => {
+    async function loadLiveMessages() {
+      try {
+        const liveMsgs = await api.getSupplierMessages();
+        if (Array.isArray(liveMsgs) && liveMsgs.length > 0) {
+          const formatted = liveMsgs.map((m, idx) => {
+            const isOutbound = m.direction === 'outbound';
+            const isDelay = m.message_text?.toLowerCase().includes('delay') || m.subject?.toLowerCase().includes('delay');
+            const isClaim = m.message_text?.toLowerCase().includes('dispatched') || m.subject?.toLowerCase().includes('dispatched');
+
+            return {
+              id: `live-msg-${m.message_id || idx}`,
+              folder: isOutbound ? 'sent' : 'inbox',
+              sender: isOutbound
+                ? 'Supply Chain Recovery Agent'
+                : (m.supplier_id === 'SUP-21' ? 'Apex Auto Parts (SUP-21)' : (m.supplier_id === 'SUP-34' ? 'Metro Auto Parts (SUP-34)' : `Supplier ${m.supplier_id}`)),
+              senderEmail: isOutbound ? 'ai-agent@scops.internal' : `supplier-${m.supplier_id?.toLowerCase() || 'vendor'}@scops.network`,
+              recipient: isOutbound ? `${m.supplier_id} Sourcing Division` : 'procurement@scops.example',
+              subject: m.subject || (isDelay ? `Delivery Delay Notification – ${m.po_id || 'PO-7712'}` : `Shipment Status Telemetry – ${m.po_id || 'PO-7712'}`),
+              snippet: (m.body || m.message_text || '').slice(0, 100) + '...',
+              body: m.body || m.message_text || '',
+              timestamp: m.sent_at ? new Date(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+              timeShort: m.sent_at ? new Date(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now',
+              isRead: false,
+              isStarred: true,
+              hasAttachment: false,
+              isAiAgent: isOutbound,
+              agentRun: isOutbound ? 'AUTONOMOUS' : undefined,
+              agentAction: isOutbound ? 'Automated Multi-Sourcing RFQ' : undefined,
+              tag: isOutbound
+                ? 'AI RFQ BROADCAST'
+                : (isDelay ? 'SUPPLIER DELAY' : (isClaim ? 'SUPPLIER DISPATCH CLAIM' : 'SUPPLIER UPDATE')),
+            };
+          });
+          setEmails((prev) => {
+            const existingIds = new Set(prev.map(e => e.id));
+            const newOnly = formatted.filter(f => !existingIds.has(f.id));
+            return [...newOnly, ...prev];
+          });
+        }
+      } catch {
+        // Fallback gracefully to default seed emails
+      }
+    }
+    loadLiveMessages();
+  }, []);
 
   const toggleStar = (e, emailId) => {
     e.stopPropagation();
