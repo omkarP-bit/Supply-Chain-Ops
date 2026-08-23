@@ -1,10 +1,9 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
     container_name: scops-postgres
     environment:
+    
       POSTGRES_USER: ${POSTGRES_USER:-scops}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scops_secret}
       POSTGRES_DB: ${POSTGRES_DB:-supply_chain}
@@ -19,6 +18,7 @@ services:
       retries: 10
 
   backend:
+    image: nimish1106/supply-chain-backend:latest
     build: ./backend
     container_name: scops-backend
     env_file: .env
@@ -39,6 +39,7 @@ services:
       retries: 10
 
   worker:
+    image: nimish1106/supply-chain-worker:latest
     build: ./backend
     container_name: scops-worker
     env_file: .env
@@ -52,6 +53,7 @@ services:
         condition: service_healthy
 
   frontend:
+    image: nimish1106/supply-chain-frontend:latest
     build: ./frontend
     container_name: scops-frontend
     ports:
